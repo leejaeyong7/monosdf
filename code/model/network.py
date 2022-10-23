@@ -137,8 +137,9 @@ class ImplicitNetwork(nn.Module):
         return sdf
 
 
-from hashencoder.hashgrid import _hash_encode, HashEncoder
-class ImplicitNetworkGrid(nn.Module):
+
+from freqhash import FreqHash
+class ImplicitNetworkFreq(nn.Module):
     def __init__(
             self,
             feature_vector_size,
@@ -153,13 +154,10 @@ class ImplicitNetworkGrid(nn.Module):
             multires=0,
             sphere_scale=1.0,
             inside_outside=False,
-            base_size = 16,
-            end_size = 2048,
-            logmap = 19,
-            num_levels=16,
-            level_dim=2,
-            divide_factor = 1.5, # used to normalize the points range for multi-res grid
-            use_grid_feature = True
+            # 
+            log2_res=5,
+            num_feats=16,
+            std=0.2
     ):
         super().__init__()
 
@@ -167,32 +165,12 @@ class ImplicitNetworkGrid(nn.Module):
         self.sphere_scale = sphere_scale
         dims = [d_in] + dims + [d_out + feature_vector_size]
         self.embed_fn = None
-        self.divide_factor = divide_factor
         self.grid_feature_dim = num_levels * level_dim
         self.use_grid_feature = use_grid_feature
-        dims[0] += self.grid_feature_dim
         
         print(f"using hash encoder with {num_levels} levels, each level with feature dim {level_dim}")
         print(f"resolution:{base_size} -> {end_size} with hash map size {logmap}")
-        self.encoding = HashEncoder(input_dim=3, num_levels=num_levels, level_dim=level_dim, 
-                    per_level_scale=2, base_resolution=base_size, 
-                    log2_hashmap_size=logmap, desired_resolution=end_size)
-        
-        '''
-        # can also use tcnn for multi-res grid as it now supports eikonal loss
-        base_size = 16
-        hash = True
-        smoothstep = True
-        self.encoding = tcnn.Encoding(3, {
-                        "otype": "HashGrid" if hash else "DenseGrid",
-                        "n_levels": 16,
-                        "n_features_per_level": 2,
-                        "log2_hashmap_size": 19,
-                        "base_resolution": base_size,
-                        "per_level_scale": 1.34,
-                        "interpolation": "Smoothstep" if smoothstep else "Linear"
-                    })
-        '''
+        self.encoding = FreqHash(log2_res, multires, num_feats, std)
         
         if multires > 0:
             embed_fn, input_ch = get_embedder(multires, input_dims=d_in)
@@ -241,26 +219,18 @@ class ImplicitNetworkGrid(nn.Module):
         self.softplus = nn.Softplus(beta=100)
         self.cache_sdf = None
 
-    def forward(self, input):
-        if self.use_grid_feature:
-            # normalize point range as encoding assume points are in [-1, 1]
-            feature = self.encoding(input / self.divide_factor)
-        else:
-            feature = torch.zeros_like(input[:, :1].repeat(1, self.grid_feature_dim))
-                    
-        if self.embed_fn is not None:
-            embed = self.embed_fn(input)
-            input = torch.cat((embed, feature), dim=-1)
-        else:
-            input = torch.cat((input, feature), dim=-1)
+    def forward(self, xyz):
+        # xyz: Nx3
+        embed = self.embed_fn(xyz)
+        feature = self.encoding(embed)
 
-        x = input
+        x = feature
 
         for l in range(0, self.num_layers - 1):
             lin = getattr(self, "lin" + str(l))
 
             if l in self.skip_in:
-                x = torch.cat([x, input], 1) / np.sqrt(2)
+                x = torch.cat([x, feature], 1) / np.sqrt(2)
 
             x = lin(x)
 
@@ -394,6 +364,88 @@ class RenderingNetwork(nn.Module):
         
         x = self.sigmoid(x)
         return x
+class RenderingNetworkFreq(nn.Module):
+    def __init__(
+            self,
+            feature_vector_size,
+            mode,
+            d_in,
+            d_out,
+            dims,
+            weight_norm=True,
+            multires_view=0,
+            per_image_code = False,
+            # 
+            log2_res=5,
+            num_feats=16,
+            std=0.2
+    ):
+        super().__init__()
+
+        self.mode = mode
+        dims = [d_in + feature_vector_size] + dims + [d_out]
+        self.encoding = FreqHash(log2_res, multires_view, num_feats, std)
+
+        self.embedview_fn = None
+        if multires_view > 0:
+            embedview_fn, input_ch = get_embedder(multires_view)
+            self.embedview_fn = embedview_fn
+            dims[0] += (input_ch - 3)
+
+        self.per_image_code = per_image_code
+        if self.per_image_code:
+            # nerf in the wild parameter
+            # parameters
+            # maximum 1024 images
+            self.embeddings = nn.Parameter(torch.empty(1024, 32))
+            std = 1e-4
+            self.embeddings.data.uniform_(-std, std)
+            dims[0] += 32
+
+        print("rendering network architecture:")
+        print(dims)
+
+        self.num_layers = len(dims)
+
+        for l in range(0, self.num_layers - 1):
+            out_dim = dims[l + 1]
+            lin = nn.Linear(dims[l], out_dim)
+
+            if weight_norm:
+                lin = nn.utils.weight_norm(lin)
+
+            setattr(self, "lin" + str(l), lin)
+
+        self.relu = nn.ReLU()
+        self.sigmoid = torch.nn.Sigmoid()
+
+    def forward(self, points, normals, view_dirs, feature_vectors, indices):
+        if self.embedview_fn is not None:
+            view_dirs = self.embedview_fn(view_dirs)
+
+        if self.mode == 'idr':
+            rendering_input = torch.cat([points, view_dirs, normals, feature_vectors], dim=-1)
+        elif self.mode == 'nerf':
+            rendering_input = torch.cat([view_dirs, feature_vectors], dim=-1)
+        else:
+            raise NotImplementedError
+
+        if self.per_image_code:
+            image_code = self.embeddings[indices].expand(rendering_input.shape[0], -1)
+            rendering_input = torch.cat([rendering_input, image_code], dim=-1)
+            
+        x = rendering_input
+
+        for l in range(0, self.num_layers - 1):
+            lin = getattr(self, "lin" + str(l))
+
+            x = lin(x)
+
+            if l < self.num_layers - 2:
+                x = self.relu(x)
+        
+        x = self.sigmoid(x)
+        return x
 
 
 class MonoSDFNetwork(nn.Module):
@@ -404,10 +456,12 @@ class MonoSDFNetwork(nn.Module):
         self.white_bkgd = conf.get_bool('white_bkgd', default=False)
         self.bg_color = torch.tensor(conf.get_list("bg_color", default=[1.0, 1.0, 1.0])).float().cuda()
 
-        Grid_MLP = conf.get_bool('Grid_MLP', default=False)
-        self.Grid_MLP = Grid_MLP
-        if Grid_MLP:
-            self.implicit_network = ImplicitNetworkGrid(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))    
+        # Grid_MLP = conf.get_bool('Grid_MLP', default=False)
+        Freq_MLP = conf.get_bool('Freq_MLP', default=False)
+        # self.Grid_MLP = Grid_MLP
+        self.Grid_MLP = Freq_MLP
+        if Freq_MLP:
+            self.implicit_network = ImplicitNetworkFreq(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))    
         else:
             self.implicit_network = ImplicitNetwork(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))
         
