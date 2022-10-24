@@ -79,7 +79,7 @@ def get_surface_sliding(path, epoch, sdf, resolution=100, grid_boundary=[-2.0, 2
                 
                 def evaluate(points):
                     z = []
-                    for _, pnts in enumerate(torch.split(points, 100000, dim=0)):
+                    for _, pnts in enumerate(torch.split(points, 10000, dim=0)):
                         z.append(sdf(pnts))
                     z = torch.cat(z, axis=0)
                     return z

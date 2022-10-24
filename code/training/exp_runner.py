@@ -51,8 +51,8 @@ if __name__ == '__main__':
 
     print(opt.local_rank)
     torch.cuda.set_device(opt.local_rank)
-    torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank, timeout=datetime.timedelta(1, 1800))
-    torch.distributed.barrier()
+    # torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank, timeout=datetime.timedelta(1, 1800))
+    # torch.distributed.barrier()
 
 
     trainrunner = MonoSDFTrainRunner(conf=opt.conf,

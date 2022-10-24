@@ -165,17 +165,14 @@ class ImplicitNetworkFreq(nn.Module):
         self.sphere_scale = sphere_scale
         dims = [d_in] + dims + [d_out + feature_vector_size]
         self.embed_fn = None
-        self.grid_feature_dim = num_levels * level_dim
-        self.use_grid_feature = use_grid_feature
-        
-        print(f"using hash encoder with {num_levels} levels, each level with feature dim {level_dim}")
-        print(f"resolution:{base_size} -> {end_size} with hash map size {logmap}")
+        self.freq_out = 6 * multires * num_feats
+        self.use_grid_feature = True
         self.encoding = FreqHash(log2_res, multires, num_feats, std)
         
         if multires > 0:
-            embed_fn, input_ch = get_embedder(multires, input_dims=d_in)
-            self.embed_fn = embed_fn
-            dims[0] += input_ch - 3
+            dims[0] = self.freq_out
+        else:
+            raise NotImplementedError("Not implemnted single re")
         print("network architecture")
         print(dims)
         
@@ -221,9 +218,7 @@ class ImplicitNetworkFreq(nn.Module):
 
     def forward(self, xyz):
         # xyz: Nx3
-        embed = self.embed_fn(xyz)
-        feature = self.encoding(embed)
-
+        feature = self.encoding(xyz)
         x = feature
 
         for l in range(0, self.num_layers - 1):

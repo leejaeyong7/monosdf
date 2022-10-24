@@ -133,7 +133,7 @@ class MonoSDFTrainRunner():
         decay_steps = self.nepochs * len(self.train_dataset)
         self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, decay_rate ** (1./decay_steps))
 
-        self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[self.GPU_INDEX], broadcast_buffers=False, find_unused_parameters=True)
+        # self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[self.GPU_INDEX], broadcast_buffers=False, find_unused_parameters=True)
         
         self.do_vis = kwargs['do_vis']
 
@@ -223,8 +223,9 @@ class MonoSDFTrainRunner():
                 batch_size = ground_truth['rgb'].shape[0]
                 model_outputs = utils.merge_output(res, self.total_pixels, batch_size)
                 plot_data = self.get_plot_data(model_input, model_outputs, model_input['pose'], ground_truth['rgb'], ground_truth['normal'], ground_truth['depth'])
+                torch.cuda.empty_cache()
 
-                plt.plot(self.model.module.implicit_network,
+                plt.plot(self.model.implicit_network,
                         indices,
                         plot_data,
                         self.plots_dir,
@@ -262,8 +263,8 @@ class MonoSDFTrainRunner():
                                     loss_output['rgb_loss'].item(),
                                     loss_output['eikonal_loss'].item(),
                                     psnr.item(),
-                                    self.model.module.density.get_beta().item(),
-                                    1. / self.model.module.density.get_beta().item()))
+                                    self.model.density.get_beta().item(),
+                                    1. / self.model.density.get_beta().item()))
                     
                     self.writer.add_scalar('Loss/loss', loss.item(), self.iter_step)
                     self.writer.add_scalar('Loss/color_loss', loss_output['rgb_loss'].item(), self.iter_step)
@@ -273,8 +274,8 @@ class MonoSDFTrainRunner():
                     self.writer.add_scalar('Loss/normal_l1_loss', loss_output['normal_l1'].item(), self.iter_step)
                     self.writer.add_scalar('Loss/normal_cos_loss', loss_output['normal_cos'].item(), self.iter_step)
                     
-                    self.writer.add_scalar('Statistics/beta', self.model.module.density.get_beta().item(), self.iter_step)
-                    self.writer.add_scalar('Statistics/alpha', 1. / self.model.module.density.get_beta().item(), self.iter_step)
+                    self.writer.add_scalar('Statistics/beta', self.model.density.get_beta().item(), self.iter_step)
+                    self.writer.add_scalar('Statistics/alpha', 1. / self.model.density.get_beta().item(), self.iter_step)
                     self.writer.add_scalar('Statistics/psnr', psnr.item(), self.iter_step)
                     
                     if self.Grid_MLP:
