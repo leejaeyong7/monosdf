@@ -358,12 +358,14 @@ class ImplicitNetworkFreq(nn.Module):
         self.skip_in = skip_in
 
         for l in range(0, self.num_layers - 1):
-            if l + 1 in self.skip_in:
-                out_dim = dims[l + 1] - dims[0]
+            if l in self.skip_in:
+                in_dim = dims[l] + dims[0]
+                out_dim = dims[l + 1]
             else:
+                in_dim = dims[l]
                 out_dim = dims[l + 1]
 
-            lin = nn.Linear(dims[l], out_dim)
+            lin = nn.Linear(in_dim, out_dim)
 
             if geometric_init:
                 if l == self.num_layers - 2:
