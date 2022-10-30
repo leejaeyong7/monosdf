@@ -4,14 +4,14 @@ mkdir data
 cd data
 
 ## DTU
-#wget https://s3.eu-central-1.amazonaws.com/avg-projects/monosdf/data/DTU.tar
-#tar -xf DTU.tar
-#rm -rf DTU.tar
+wget https://s3.eu-central-1.amazonaws.com/avg-projects/monosdf/data/DTU.tar
+tar -xf DTU.tar
+rm -rf DTU.tar
 
 # scannet
-wget https://s3.eu-central-1.amazonaws.com/avg-projects/monosdf/data/scannet.tar
-tar -xf scannet.tar
-rm -rf scannet.tar
+# wget https://s3.eu-central-1.amazonaws.com/avg-projects/monosdf/data/scannet.tar
+# tar -xf scannet.tar
+# rm -rf scannet.tar
 
 ## Replica
 #wget https://s3.eu-central-1.amazonaws.com/avg-projects/monosdf/data/Replica.tar

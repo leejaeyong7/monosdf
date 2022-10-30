@@ -3,6 +3,8 @@ import sys
 sys.path.append('../code')
 import argparse
 import torch
+torch.backends.cudnn.enabled = True
+torch.backends.cudnn.benchmark = True
 
 import os
 from training.monosdf_train import MonoSDFTrainRunner
@@ -12,7 +14,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
-    parser.add_argument('--nepoch', type=int, default=2000, help='number of epochs to train for')
+    parser.add_argument('--nepoch', type=int, default=201, help='number of epochs to train for')
     parser.add_argument('--conf', type=str, default='./confs/dtu.conf')
     parser.add_argument('--expname', type=str, default='')
     parser.add_argument("--exps_folder", type=str, default="exps")

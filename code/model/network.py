@@ -170,7 +170,7 @@ class ImplicitNetworkGrid(nn.Module):
         self.divide_factor = divide_factor
         self.grid_feature_dim = num_levels * level_dim
         self.use_grid_feature = use_grid_feature
-        dims[0] += self.grid_feature_dim
+        # dims[0] += self.grid_feature_dim
         
         print(f"using hash encoder with {num_levels} levels, each level with feature dim {level_dim}")
         print(f"resolution:{base_size} -> {end_size} with hash map size {logmap}")
@@ -242,15 +242,17 @@ class ImplicitNetworkGrid(nn.Module):
         self.cache_sdf = None
 
     def forward(self, input):
+        oinput = input
         if self.use_grid_feature:
             # normalize point range as encoding assume points are in [-1, 1]
             feature = self.encoding(input / self.divide_factor)
-        else:
-            feature = torch.zeros_like(input[:, :1].repeat(1, self.grid_feature_dim))
+        # else:
+        #     feature = torch.zeros_like(input[:, :1].repeat(1, self.grid_feature_dim))
                     
         if self.embed_fn is not None:
             embed = self.embed_fn(input)
-            input = torch.cat((embed, feature), dim=-1)
+            input = embed
+            # input = torch.cat((embed, feature), dim=-1)
         else:
             input = torch.cat((input, feature), dim=-1)
 
@@ -316,7 +318,8 @@ class ImplicitNetworkGrid(nn.Module):
             print(p.shape)
         return self.encoding.parameters()
 
-from freqhash import FreqHash
+from freqhash import FreqHash, MultiFreqEncoder
+from freqhash import FreqVMEncoder
 class ImplicitNetworkFreq(nn.Module):
     def __init__(
             self,
@@ -332,23 +335,31 @@ class ImplicitNetworkFreq(nn.Module):
             multires=0,
             sphere_scale=1.0,
             inside_outside=False,
+            divide_factor=1.0,
             # 
-            log2_res=5,
-            num_feats=16,
-            std=0.2
+            use_2d=False,
+            log2_res=4,
+            num_feats=8,
+            std=0.001
     ):
         super().__init__()
 
         self.sdf_bounding_sphere = sdf_bounding_sphere
         self.sphere_scale = sphere_scale
         dims = [d_in] + dims + [d_out + feature_vector_size]
+        self.divide_factor = divide_factor
         self.embed_fn = None
         self.freq_out = 6 * multires * num_feats
         self.use_grid_feature = True
-        self.encoding = FreqHash(log2_res, multires, num_feats, std)
+
+        if use_2d:
+            self.encoding = FreqVMEncoder(log2_res, multires, num_feats, std)
+        else:
+            self.encoding = FreqHash(log2_res, multires, num_feats, std)
+            # self.encoding = MultiFreqEncoder(log2_res, multires, num_feats, std)
         
         if multires > 0:
-            dims[0] = self.freq_out
+            dims[0] = self.freq_out + d_in
         else:
             raise NotImplementedError("Not implemnted single re")
         print("network architecture")
@@ -356,6 +367,9 @@ class ImplicitNetworkFreq(nn.Module):
         
         self.num_layers = len(dims)
         self.skip_in = skip_in
+        for l in range(0, self.num_layers - 1):
+            if l in self.skip_in:
+                dims[l] -= multires * 6
 
         for l in range(0, self.num_layers - 1):
             if l in self.skip_in:
@@ -398,7 +412,8 @@ class ImplicitNetworkFreq(nn.Module):
 
     def forward(self, xyz):
         # xyz: Nx3
-        feature = self.encoding(xyz)
+        feature = self.encoding(xyz, self.divide_factor)
+        feature = torch.cat((xyz, feature), 1)
         x = feature
 
         for l in range(0, self.num_layers - 1):
@@ -539,6 +554,7 @@ class RenderingNetwork(nn.Module):
         
         x = self.sigmoid(x)
         return x
+
 class RenderingNetworkFreq(nn.Module):
     def __init__(
             self,
@@ -551,21 +567,27 @@ class RenderingNetworkFreq(nn.Module):
             multires_view=0,
             per_image_code = False,
             # 
-            log2_res=5,
-            num_feats=16,
-            std=0.2
+            log2_res=4,
+            num_feats=8,
+            use_2d=False,
+            std=0.001,
+            divide_factor=1.0,
     ):
         super().__init__()
 
         self.mode = mode
         dims = [d_in + feature_vector_size] + dims + [d_out]
-        self.encoding = FreqHash(log2_res, multires_view, num_feats, std)
+        if use_2d:
+            self.encoding = FreqVMEncoder(log2_res, multires_view, num_feats, std)
+        else:
+            self.encoding = FreqHash(log2_res, multires_view, num_feats, std)
+
+        enc_out = 6 * multires_view * num_feats
+        self.divide_factor= divide_factor
 
         self.embedview_fn = None
-        if multires_view > 0:
-            embedview_fn, input_ch = get_embedder(multires_view)
-            self.embedview_fn = embedview_fn
-            dims[0] += (input_ch - 3)
+        assert multires_view > 0
+        dims[0] += enc_out
 
         self.per_image_code = per_image_code
         if self.per_image_code:
@@ -595,13 +617,14 @@ class RenderingNetworkFreq(nn.Module):
         self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, points, normals, view_dirs, feature_vectors, indices):
-        if self.embedview_fn is not None:
-            view_dirs = self.embedview_fn(view_dirs)
+        # encs = self.encoding(points / self.divide_factor)
+        encs = self.encoding(view_dirs)
+        encs = torch.cat((view_dirs, encs), 1)
 
         if self.mode == 'idr':
-            rendering_input = torch.cat([points, view_dirs, normals, feature_vectors], dim=-1)
+            rendering_input = torch.cat([points, encs, normals, feature_vectors], dim=-1)
         elif self.mode == 'nerf':
-            rendering_input = torch.cat([view_dirs, feature_vectors], dim=-1)
+            rendering_input = torch.cat([points, encs, feature_vectors], dim=-1)
         else:
             raise NotImplementedError
 
@@ -636,15 +659,18 @@ class MonoSDFNetwork(nn.Module):
         # self.Grid_MLP = Grid_MLP
         if Freq_MLP:
             self.implicit_network = ImplicitNetworkFreq(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))    
+            # self.rendering_network = RenderingNetworkFreq(self.feature_vector_size, **conf.get_config('rendering_network'))
+            self.rendering_network = RenderingNetwork(self.feature_vector_size, **conf.get_config('rendering_network'))
             self.Grid_MLP = Freq_MLP
         elif Grid_MLP:
             self.implicit_network = ImplicitNetworkGrid(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))    
+            self.rendering_network = RenderingNetwork(self.feature_vector_size, **conf.get_config('rendering_network'))
             self.Grid_MLP = Grid_MLP
         else:
             self.implicit_network = ImplicitNetwork(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))
+            self.rendering_network = RenderingNetwork(self.feature_vector_size, **conf.get_config('rendering_network'))
             self.Grid_MLP = Grid_MLP
         
-        self.rendering_network = RenderingNetwork(self.feature_vector_size, **conf.get_config('rendering_network'))
         
         self.density = LaplaceDensity(**conf.get_config('density'))
         sampling_method = conf.get_string('sampling_method', default="errorbounded")

@@ -188,6 +188,7 @@ class MonoSDFLoss(nn.Module):
     def get_depth_loss(self, depth_pred, depth_gt, mask):
         # TODO remove hard-coded scaling for depth
         return self.depth_loss(depth_pred.reshape(1, 32, 32), (depth_gt * 50 + 0.5).reshape(1, 32, 32), mask.reshape(1, 32, 32))
+        # return self.depth_loss(depth_pred.reshape(1, 1, -1), (depth_gt * 50 + 0.5).reshape(1, 1, -1), mask.reshape(1, 1, -1))
         
     def get_normal_loss(self, normal_pred, normal_gt):
         normal_gt = torch.nn.functional.normalize(normal_gt, p=2, dim=-1)

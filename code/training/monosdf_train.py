@@ -197,7 +197,7 @@ class MonoSDFTrainRunner():
             if self.GPU_INDEX == 0 and epoch % self.checkpoint_freq == 0:
                 self.save_checkpoints(epoch)
 
-            if self.GPU_INDEX == 0 and self.do_vis and epoch % self.plot_freq == 0:
+            if self.GPU_INDEX == 0 and self.do_vis and epoch % self.plot_freq == 0 and epoch != 0:
                 self.model.eval()
 
                 self.train_dataset.change_sampling_idx(-1)

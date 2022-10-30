@@ -142,6 +142,8 @@ def get_surface_sliding(path, epoch, sdf, resolution=100, grid_boundary=[-2.0, 2
                     #meshcrop.export(f"{i}_{j}_{k}.ply")
                     meshes.append(meshcrop)
 
+    if len(meshes) == 0:
+        return
     combined = trimesh.util.concatenate(meshes)
 
     if return_mesh:
