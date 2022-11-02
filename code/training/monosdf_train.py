@@ -270,7 +270,7 @@ class MonoSDFTrainRunner():
                     #                 self.model.density.get_beta().item(),
                     #                 1. / self.model.density.get_beta().item()))
                     train_iterator.set_description(
-                        '{0}: loss = {1}, rgb_loss = {2}, eikonal_loss = {3}, psnr = {4}, bete={5}, alpha={6}'
+                        '{0}: loss = {1:.04f}, rgb_loss = {2:.04f}, eikonal_loss = {3:.04f}, psnr = {4:.1f}, bete={5:.04f}, alpha={6:.04f}'
                             .format(self.expname, loss.item(),
                                     loss_output['rgb_loss'].item(),
                                     loss_output['eikonal_loss'].item(),
