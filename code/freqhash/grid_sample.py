@@ -5,7 +5,6 @@
 #     # FDx1x1xNx3
 #     _, _,_, N, _ = sample.shape
 #     sample = (sample.view(FD, 1, -1, 3).clamp(-1, 1) + 1) / 2 * (RW -1)
-
 #     tln = sample.floor().long()
 #     brf = sample.ceil().long()
 #     l = tln[..., 0]
@@ -76,7 +75,6 @@
 #     ftr = mat.view(FD, C, -1).gather(2, tr.expand(-1, C, -1))
 #     fbl = mat.view(FD, C, -1).gather(2, bl.expand(-1, C, -1))
 #     fbr = mat.view(FD, C, -1).gather(2, br.expand(-1, C, -1))
-
 #     # compute corners
 #     # ftl = mat[:, :, t, l]
 #     # ftr = mat[:, :, t, r]
@@ -105,7 +103,6 @@
 #     # fs = vec[:, :, s, 0]
 #     # fe = vec[:, :, e, 0]
 #     return (fs * (1 - w) + fe * w).view(FD, -1, 1, N)
-
 # def grid_sample(features, grid, requires_hess=False):
 #     return NF.grid_sample(features, grid, align_corners=True, mode='bilinear')
 #     if not requires_hess:
