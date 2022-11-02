@@ -104,7 +104,7 @@ def grid_sample_1d(vec, sample):
     # fe = vec[:, :, e, 0]
     return (fs * (1 - w) + fe * w).view(FD, -1, 1, N)
 def grid_sample(features, grid, requires_hess=False):
-    return NF.grid_sample(features, grid, align_corners=True, mode='bilinear')
+    # return NF.grid_sample(features, grid, align_corners=True, mode='bilinear')
     if not requires_hess:
         return NF.grid_sample(features, grid, align_corners=True, mode='bilinear')
     if features.shape[-1] == 1:
