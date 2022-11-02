@@ -1,4 +1,6 @@
+import torch
 import torch.nn.functional as NF
+
 def grid_sample_3d(vol, sample):
     FD, C, RD, RH, RW = vol.shape
     # FDx1x1xNx3
@@ -51,7 +53,7 @@ def grid_sample_3d(vol, sample):
 
     # FD x C
     return (fn * (1 - wz) + ff * wz).view(FD, -1, 1, N)
-
+@torch.jit.script
 def grid_sample_2d(mat, sample):
     # Nx2
     FD, C, RH, RW = mat.shape
@@ -85,7 +87,7 @@ def grid_sample_2d(mat, sample):
 
     # FD x C
     return (ft * (1 - wy) + fb * wy).view(FD, -1, 1, N)
-
+@torch.jit.script
 def grid_sample_1d(vec, sample):
     FD, C, H, _ = vec.shape
     _, _, N, _ = sample.shape
