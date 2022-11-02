@@ -192,7 +192,8 @@ class MonoSDFTrainRunner():
             self.writer = SummaryWriter(log_dir=os.path.join(self.plots_dir, 'logs'))
 
         self.iter_step = 0
-        for epoch in range(self.start_epoch, self.nepochs + 1):
+        epoch_iterator = tqdm(range(self.start_epoch, self.nepochs + 1), dynamic_ncols=True)
+        for epoch in epoch_iterator:
 
             if self.GPU_INDEX == 0 and epoch % self.checkpoint_freq == 0:
                 self.save_checkpoints(epoch)
@@ -237,7 +238,10 @@ class MonoSDFTrainRunner():
                 self.model.train()
             self.train_dataset.change_sampling_idx(self.num_pixels)
 
-            for data_index, (indices, model_input, ground_truth) in enumerate(self.train_dataloader):
+            num_data = len(self.train_dataloader)
+            train_iterator = tqdm(enumerate(self.train_dataloader), total=num_data, dynamic_ncols=True, leave=False)
+
+            for data_index, (indices, model_input, ground_truth) in train_iterator:
                 model_input["intrinsics"] = model_input["intrinsics"].cuda()
                 model_input["uv"] = model_input["uv"].cuda()
                 model_input['pose'] = model_input['pose'].cuda()
@@ -257,9 +261,17 @@ class MonoSDFTrainRunner():
                 self.iter_step += 1                
                 
                 if self.GPU_INDEX == 0:
-                    print(
-                        '{0}_{1} [{2}] ({3}/{4}): loss = {5}, rgb_loss = {6}, eikonal_loss = {7}, psnr = {8}, bete={9}, alpha={10}'
-                            .format(self.expname, self.timestamp, epoch, data_index, self.n_batches, loss.item(),
+                    # train_iterator.set_description(
+                    #     '{0}_{1} [{2}] ({3}/{4}): loss = {5}, rgb_loss = {6}, eikonal_loss = {7}, psnr = {8}, bete={9}, alpha={10}'
+                    #         .format(self.expname, self.timestamp, epoch, data_index, self.n_batches, loss.item(),
+                    #                 loss_output['rgb_loss'].item(),
+                    #                 loss_output['eikonal_loss'].item(),
+                    #                 psnr.item(),
+                    #                 self.model.density.get_beta().item(),
+                    #                 1. / self.model.density.get_beta().item()))
+                    train_iterator.set_description(
+                        '{0}: loss = {1}, rgb_loss = {2}, eikonal_loss = {3}, psnr = {4}, bete={5}, alpha={6}'
+                            .format(self.expname, loss.item(),
                                     loss_output['rgb_loss'].item(),
                                     loss_output['eikonal_loss'].item(),
                                     psnr.item(),
