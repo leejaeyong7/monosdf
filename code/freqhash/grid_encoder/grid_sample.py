@@ -1,7 +1,7 @@
 import torch
 from .grid_backward import grid_backward
 
-def grid_sample(input, grid, requires_hess=False):
+def grid_sample(input, grid):
     return grid_sample_cuda.apply(input, grid)
 
 class grid_sample_cuda(torch.autograd.Function):

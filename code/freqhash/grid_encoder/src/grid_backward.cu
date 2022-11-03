@@ -32,29 +32,12 @@ static inline __host__ __device__ T div_round_up(T val, T divisor) {
 }
 
 
-__device__ inline float smoothstep(float val) {
-	return val*val*(3.0f - 2.0f * val);
-}
-
-__device__ inline float smoothstep_derivative(float val) {
-	return 6*val*(1.0f - val);
-}
-
-__device__ inline float identity_fun(float val) {
-	return val;
-}
-
-__device__ inline float identity_derivative(float val) {
-	return 1;
-}
-
 template <typename scalar_t>
 __global__ void kernel_grid_backward(
     const scalar_t * __restrict__ grad_outputs, // NxCxOHxOW
     const scalar_t * __restrict__ features,     // NxCxIHxIW
     const scalar_t * __restrict__ grid,         // NxOHxOWx2
     scalar_t * __restrict__ dy_dx,              // NxCxOHxOWx2
-    scalar_t * __restrict__ dy_dx__df,          // NxOHxOWx4x2
     scalar_t * __restrict__ grad_features,      // NxCxIHxIW
     scalar_t * __restrict__ grad_grid,          // NxOHxOWx2
     const uint32_t N, const uint32_t C, 
@@ -100,11 +83,6 @@ __global__ void kernel_grid_backward(
         atomicAdd(grad_features + o10, go * (1 - wx) * (wy));
         atomicAdd(grad_features + o11, go * wx * wy);
 
-        atomicAdd(dy_dx__df + o00, go * (-(1 - wy) * sx - (1 - wx) * sy));
-        atomicAdd(dy_dx__df + o01, go * ((1 - wy) * sx - wx * sy));
-        atomicAdd(dy_dx__df + o10, go * (-wy * sx + (1 - wx) * sy));
-        atomicAdd(dy_dx__df + o11, go * (wy * sx + wx * sy));
-
         // compute dy_dx
         const scalar_t f00 = features[o00];
         const scalar_t f01 = features[o01];
@@ -137,7 +115,6 @@ void grid_backward_cuda(
     const scalar_t *features, 
     const scalar_t *grid, 
     scalar_t * dy_dx, 
-    scalar_t * dy_dx__df, 
     scalar_t * grad_features, 
     scalar_t * grad_grid, 
     const uint32_t N, const uint32_t C, 
@@ -151,7 +128,6 @@ void grid_backward_cuda(
         features,
         grid,
         dy_dx,
-        dy_dx__df,
         grad_features,
         grad_grid,
         N, C, IH, IW, OH, OW
@@ -163,7 +139,6 @@ void grid_backward(
     const at::Tensor features, 
     const at::Tensor grid, 
     at::Tensor dy_dx, 
-    at::Tensor dy_dx__df, 
     at::Tensor grad_features, 
     at::Tensor grad_grid, 
     const uint32_t N, const uint32_t C, 
@@ -175,7 +150,6 @@ void grid_backward(
     CHECK_CUDA(features);
     CHECK_CUDA(grid);
     CHECK_CUDA(dy_dx);
-    CHECK_CUDA(dy_dx__df);
     CHECK_CUDA(grad_features);
     CHECK_CUDA(grad_grid);
 
@@ -183,7 +157,6 @@ void grid_backward(
     CHECK_CONTIGUOUS(features);
     CHECK_CONTIGUOUS(grid);
     CHECK_CONTIGUOUS(dy_dx);
-    CHECK_CONTIGUOUS(dy_dx__df);
     CHECK_CONTIGUOUS(grad_features);
     CHECK_CONTIGUOUS(grad_grid);
 
@@ -195,9 +168,117 @@ void grid_backward(
                     features.data_ptr<scalar_t>(), 
                     grid.data_ptr<scalar_t>(), 
                     dy_dx.data_ptr<scalar_t>(), 
-                    dy_dx__df.data_ptr<scalar_t>(), 
                     grad_features.data_ptr<scalar_t>(), 
                     grad_grid.data_ptr<scalar_t>(), 
+                    N, C, IH, IW, OH, OW
+                );
+            }
+        )
+    );
+}
+
+// backward backward
+
+template <typename scalar_t>
+__global__ void kernel_grid_backward_backward(
+    const scalar_t * __restrict__ grad_outputs,   // NxCxOHxOW
+    const scalar_t * __restrict__ grad_grad_grid, // NxOHxOWx2
+    const scalar_t * __restrict__ grid,           // NxOHxOWx2
+    scalar_t * __restrict__ grad2_features,       // NxCxIHxIW
+    const uint32_t N, const uint32_t C, 
+    const uint32_t IH, const uint32_t IW, 
+    const uint32_t OH, const uint32_t OW) {
+    const uint32_t b = blockIdx.x * blockDim.x + threadIdx.x;
+	if (b>= N*OH*OW) return;
+
+    // obtain index of the thread
+    const uint32_t n = b / (OH * OW);
+    const uint32_t oh = (b / OW) % OH;
+    const uint32_t ow = b % OW;
+
+    // skip to the corresponding grids
+    grad_outputs = grad_outputs + n * C * OH * OW + oh * OW + ow;
+    grid = grid + n * OH * OW * 2 + oh* OW * 2  + ow * 2;
+    grad_grad_grid = grad_grad_grid + n * OH * OW * 2 + oh* OW * 2  + ow * 2;
+
+    const scalar_t gx = (grid[0] + 1) / 2.0 * (IW - 1);
+    const scalar_t gy = (grid[1] + 1) / 2.0 * (IH - 1);
+
+    const uint32_t x0 = max(min((uint32_t)floor(gx), IW - 2), 0);
+    const uint32_t y0 = max(min((uint32_t)floor(gy), IH - 2), 0);
+    const uint32_t x1 = x0 + 1;
+    const uint32_t y1 = y0 + 1;
+    const scalar_t wx = min(max((gx - (scalar_t)x0), (scalar_t)0), (scalar_t)1);
+    const scalar_t wy = min(max((gy - (scalar_t)y0), (scalar_t)0), (scalar_t)1);
+
+    const scalar_t ggx = grad_grad_grid[0];
+    const scalar_t ggy = grad_grad_grid[1];
+    const scalar_t sx = (scalar_t)(IW - 1) / 2.0 * ggx;
+    const scalar_t sy = (scalar_t)(IH - 1) / 2.0 * ggy;
+
+    for(uint32_t c = 0; c < C; c++){
+        const uint32_t o00  = n * C * IH * IW + c * IH * IW + y0 * IW + x0;
+        const uint32_t o01  = n * C * IH * IW + c * IH * IW + y0 * IW + x1;
+        const uint32_t o10  = n * C * IH * IW + c * IH * IW + y1 * IW + x0;
+        const uint32_t o11  = n * C * IH * IW + c * IH * IW + y1 * IW + x1;
+        const scalar_t go = (grad_outputs + c * OH * OW)[0];
+
+        atomicAdd(grad2_features + o00, go * (-(1 - wy) * sx - (1 - wx) * sy));
+        atomicAdd(grad2_features + o01, go * ((1 - wy) * sx - wx * sy));
+        atomicAdd(grad2_features + o10, go * (-wy * sx + (1 - wx) * sy));
+        atomicAdd(grad2_features + o11, go * (wy * sx + wx * sy));
+    }
+}
+
+template <typename scalar_t>
+void grid_backward_backward_cuda(
+    const scalar_t *grad_outputs, 
+    const scalar_t *grad_grad_grids, 
+    const scalar_t *grid, 
+    scalar_t * grad2_feats, 
+    const uint32_t N, const uint32_t C, 
+    const uint32_t IH, const uint32_t IW, 
+    const uint32_t OH, const uint32_t OW) {
+
+    static constexpr uint32_t N_THREAD = 256;
+	const dim3 blocks_hashgrid = { div_round_up(N * OH * OW, N_THREAD), 1, 1 };
+    kernel_grid_backward_backward<scalar_t><<<blocks_hashgrid, N_THREAD>>>(
+        grad_outputs,
+        grad_grad_grids,
+        grid,
+        grad2_feats,
+        N, C, IH, IW, OH, OW
+    ); 
+}
+
+void grid_backward_backward(
+    const at::Tensor grad_outputs, 
+    const at::Tensor grad_grad_grid, 
+    const at::Tensor grid, 
+    at::Tensor grad2_features, 
+    const uint32_t N, const uint32_t C, 
+    const uint32_t IH, const uint32_t IW, 
+    const uint32_t OH, const uint32_t OW
+){
+
+    CHECK_CUDA(grad_outputs);
+    CHECK_CUDA(grad_grad_grid);
+    CHECK_CUDA(grid);
+    CHECK_CUDA(grad2_features);
+
+    CHECK_CONTIGUOUS(grad_outputs);
+    CHECK_CONTIGUOUS(grad_grad_grid);
+    CHECK_CONTIGUOUS(grid);
+    CHECK_CONTIGUOUS(grad2_features);
+
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+        grad_grad_grid.scalar_type(), "grid_backward_backward", (
+            [&] {
+                grid_backward_backward_cuda<scalar_t>(
+                    grad_outputs.data_ptr<scalar_t>(), 
+                    grad_grad_grid.data_ptr<scalar_t>(), 
+                    grid.data_ptr<scalar_t>(), 
+                    grad2_features.data_ptr<scalar_t>(), 
                     N, C, IH, IW, OH, OW
                 );
             }

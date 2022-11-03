@@ -1,14 +1,5 @@
-import enum
-from math import ceil
-from cachetools import cached
-import numpy as np
-
 import torch
-import torch.nn as nn
 from torch.autograd import Function
-from torch.autograd.function import once_differentiable
-from torch.cuda.amp import custom_bwd, custom_fwd 
-
 from .backend import _backend
 
 class grid_backward(Function):
@@ -19,28 +10,33 @@ class grid_backward(Function):
 
         grad_features = torch.zeros_like(features)
         grad_grids = torch.zeros_like(grids)
-        # NxOHxOWx4x2 => 4 coords, 2 directions
-        dy_dx__df = torch.zeros((N, C, IH, IW), device=grids.device, dtype=grids.dtype)
 
-        # NxOHxOWx4x2 => 4 coords
         dy_dx = torch.zeros((N, C, OH, OW, 2), device=grids.device, dtype=grids.dtype)
-        grad_output = grad_output.contiguous()
 
-        ctx.save_for_backward(grad_output, features, grids, dy_dx, dy_dx__df, grad_features, grad_grids)
+        ctx.save_for_backward(grad_output, grids, dy_dx)
         ctx.dims = [N, C, IH, IW, OH, OW]
 
-        _backend.grid_backward(grad_output, features, grids, dy_dx, dy_dx__df, grad_features, grad_grids, N, C, IH, IW, OH, OW)
+        if not grad_output.is_contiguous():
+            grad_output = grad_output.contiguous()
+        if not features.is_contiguous():
+            features = features.contiguous()
+        if not grids.is_contiguous():
+            grids = grids.contiguous()
+
+        _backend.grid_backward(grad_output, features, grids, dy_dx, grad_features, grad_grids, N, C, IH, IW, OH, OW)
         
         return grad_features / 2, grad_grids
 
     @staticmethod
-    def backward(ctx, grad_grad_inputs, grad_grad_embeddings):
-        grad_output, features, grids, dy_dx, dy_dx__df, grad_features, grad_grids = ctx.saved_tensors
+    def backward(ctx, grad_grad_features, grad_grad_grids):
+        grad_output, grids, dy_dx = ctx.saved_tensors
         N, C, IH, IW, OH, OW = ctx.dims
-        grad_grad = dy_dx.sum(-1)
+        grad_grad = (dy_dx * grad_grad_grids.unsqueeze(1)).sum(-1)
 
         # NxCxIHxIW
-        grad2_features = dy_dx__df
+        grad2_features = torch.zeros_like(grad_grad_features)
+        _backend.grid_backward_backward(grad_output, grad_grad_grids, grids, grad2_features, N, C, IH, IW, OH, OW)
 
         return grad_grad, grad2_features, None
+
 
