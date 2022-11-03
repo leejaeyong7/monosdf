@@ -170,7 +170,7 @@ class ImplicitNetworkGrid(nn.Module):
         self.divide_factor = divide_factor
         self.grid_feature_dim = num_levels * level_dim
         self.use_grid_feature = use_grid_feature
-        # dims[0] += self.grid_feature_dim
+        dims[0] += self.grid_feature_dim
         
         print(f"using hash encoder with {num_levels} levels, each level with feature dim {level_dim}")
         print(f"resolution:{base_size} -> {end_size} with hash map size {logmap}")
@@ -246,13 +246,13 @@ class ImplicitNetworkGrid(nn.Module):
         if self.use_grid_feature:
             # normalize point range as encoding assume points are in [-1, 1]
             feature = self.encoding(input / self.divide_factor)
-        # else:
-        #     feature = torch.zeros_like(input[:, :1].repeat(1, self.grid_feature_dim))
+        else:
+            feature = torch.zeros_like(input[:, :1].repeat(1, self.grid_feature_dim))
                     
         if self.embed_fn is not None:
             embed = self.embed_fn(input)
-            input = embed
-            # input = torch.cat((embed, feature), dim=-1)
+            # input = embed
+            input = torch.cat((embed, feature), dim=-1)
         else:
             input = torch.cat((input, feature), dim=-1)
 

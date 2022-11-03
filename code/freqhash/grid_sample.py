@@ -1,12 +1,10 @@
 import torch
 import torch.nn.functional as NF
-
 def grid_sample_3d(vol, sample):
     FD, C, RD, RH, RW = vol.shape
     # FDx1x1xNx3
     _, _,_, N, _ = sample.shape
     sample = (sample.view(FD, 1, -1, 3).clamp(-1, 1) + 1) / 2 * (RW -1)
-
     tln = sample.floor().long()
     brf = sample.ceil().long()
     l = tln[..., 0]
@@ -75,7 +73,6 @@ def grid_sample_2d(mat, sample):
     ftr = mat.view(FD, C, -1).gather(2, tr.expand(-1, C, -1))
     fbl = mat.view(FD, C, -1).gather(2, bl.expand(-1, C, -1))
     fbr = mat.view(FD, C, -1).gather(2, br.expand(-1, C, -1))
-
     # compute corners
     # ftl = mat[:, :, t, l]
     # ftr = mat[:, :, t, r]
@@ -102,8 +99,8 @@ def grid_sample_1d(vec, sample):
     # fs = vec[:, :, s, 0]
     # fe = vec[:, :, e, 0]
     return (fs * (1 - w) + fe * w).view(FD, -1, 1, N)
-
 def grid_sample(features, grid, requires_hess=False):
+    # return NF.grid_sample(features, grid, align_corners=True, mode='bilinear')
     if not requires_hess:
         return NF.grid_sample(features, grid, align_corners=True, mode='bilinear')
     if features.shape[-1] == 1:
@@ -112,3 +109,63 @@ def grid_sample(features, grid, requires_hess=False):
         return grid_sample_2d(features, grid)
     else:
         return grid_sample_3d(features, grid)
+
+
+# import torch
+# from pkg_resources import parse_version
+
+# #----------------------------------------------------------------------------
+
+# enabled = False  # Enable the custom op by setting this to true.
+# _use_pytorch_1_11_api = parse_version(torch.__version__) >= parse_version('1.11.0a') # Allow prerelease builds of 1.11
+
+# #----------------------------------------------------------------------------
+
+# def grid_sample(input, grid, requires_hess=False):
+#     return _GridSample2dForward.apply(input, grid)
+# #----------------------------------------------------------------------------
+
+# class _GridSample2dForward(torch.autograd.Function):
+#     @staticmethod
+#     def forward(ctx, input, grid):
+#         assert input.ndim == 4
+#         assert grid.ndim == 4
+#         output = torch.nn.functional.grid_sample(input=input, grid=grid, mode='bilinear', padding_mode='zeros', align_corners=True)
+#         ctx.save_for_backward(input, grid)
+#         return output
+
+#     @staticmethod
+#     def backward(ctx, grad_output):
+#         input, grid = ctx.saved_tensors
+#         grad_input, grad_grid = _GridSample2dBackward.apply(grad_output, input, grid)
+#         return grad_input, grad_grid
+
+# #----------------------------------------------------------------------------
+
+# class _GridSample2dBackward(torch.autograd.Function):
+#     @staticmethod
+#     def forward(ctx, grad_output, input, grid):
+#         op = torch._C._jit_get_operation('aten::grid_sampler_2d_backward')[0]
+#         if _use_pytorch_1_11_api:
+#             output_mask = (ctx.needs_input_grad[1], ctx.needs_input_grad[2])
+#             grad_input, grad_grid = op(grad_output, input, grid, 0, 0, True, output_mask)
+#         else:
+#             grad_input, grad_grid = op(grad_output, input, grid, 0, 0, True)
+#         ctx.save_for_backward(grid)
+#         return grad_input, grad_grid
+
+#     @staticmethod
+#     def backward(ctx, grad2_grad_input, grad2_grad_grid):
+#         _ = grad2_grad_grid # unused
+#         grid, = ctx.saved_tensors
+#         grad2_grad_output = None
+#         grad2_input = None
+#         grad2_grid = None
+
+#         if ctx.needs_input_grad[0]:
+#             grad2_grad_output = _GridSample2dForward.apply(grad2_grad_input, grid)
+
+#         # assert not ctx.needs_input_grad[2]
+#         return grad2_grad_output, grad2_input, grad2_grid
+
+# #----------------------------------------------------------------------------
