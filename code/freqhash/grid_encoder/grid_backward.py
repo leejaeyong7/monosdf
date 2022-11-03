@@ -24,6 +24,7 @@ class grid_backward(Function):
 
         # NxOHxOWx4x2 => 4 coords
         dy_dx = torch.zeros((N, C, OH, OW, 2), device=grids.device, dtype=grids.dtype)
+        grad_output = grad_output.contiguous()
 
         ctx.save_for_backward(grad_output, features, grids, dy_dx, dy_dx__df, grad_features, grad_grids)
         ctx.dims = [N, C, IH, IW, OH, OW]
