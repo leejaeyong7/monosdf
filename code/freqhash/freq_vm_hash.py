@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as NF
 import math
-from .grid_sample import grid_sample
+from .grid_encoder import grid_sample
 
 class FreqVMEncoder(nn.Module):
     def __init__(self, log2_res=4, num_freqs=6, num_channels=16, std=0.001):
