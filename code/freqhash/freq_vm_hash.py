@@ -62,11 +62,11 @@ class FreqVMEncoder(nn.Module):
         grid = torch.cat((w, encs), -1)
 
         # (Fx2x3)xCx1xN
-        vec_f = grid_sample(cv, grid, True).view(-1, 2, 3, C, N)
+        vec_f = grid_sample(cv, grid).view(-1, 2, 3, C, N)
         cm = self.params['cm']
 
         # Fx2x3xCxN
-        mat_f = grid_sample(cm, mat_grid, True).view(-1, 2, 3, C, N)
+        mat_f = grid_sample(cm, mat_grid).view(-1, 2, 3, C, N)
 
         # Fx2x3xCxN
         # basis = self.params['basis']
@@ -152,8 +152,8 @@ class MultiFreqVMEncoder(nn.Module):
         latents = []
         for i, scale in enumerate(self.scales):
             num_channels = self.features[i].shape[1]
-            fs = grid_sample(self.features[i], grid[i], True).view(2, self.x_dim, num_channels, -1)
-            fs_2d = grid_sample(self.features_2d[i], grid_2d[i], True).view(2, self.x_dim, num_channels, -1)
+            fs = grid_sample(self.features[i], grid[i]).view(2, self.x_dim, num_channels, -1)
+            fs_2d = grid_sample(self.features_2d[i], grid_2d[i]).view(2, self.x_dim, num_channels, -1)
             # 2x3xCxN => NxCx2x3
             latents.append((fs * fs_2d).permute(3, 2, 0, 1))
 

@@ -51,7 +51,7 @@ class FreqVEncoder(nn.Module):
     def encoder(self, encs, grid, add, requires_hess=False):
         cv = self.cv
         C = cv.shape[1]
-        vol_f = grid_sample(cv, grid, requires_hess).view(-1, C, N)
+        vol_f = grid_sample(cv, grid).view(-1, C, N)
 
         # (Fx2x3)xN
 

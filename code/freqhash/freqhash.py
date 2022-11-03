@@ -2,7 +2,7 @@ import math
 import torch
 import torch.nn as nn
 
-from .grid_sample import grid_sample
+from .grid_encoder import grid_sample
 
 class FreqHashO(nn.Module):
     def __init__(self, log2_res=8, num_freqs=6, num_channels=48, std=0.001):
@@ -58,7 +58,7 @@ class FreqHash(nn.Module):
         grid = torch.cat((w, encs), -1)
 
         # (Fx2x3)xCx1xN
-        fs = grid_sample(cv, grid, True).view(F, 2, 3, C, N)
+        fs = grid_sample(cv, grid).view(F, 2, 3, C, N)
         fs = fs + oencs.view(F, 2, 3, 1, N)
         # fs = encs.view(F, 2, 3, 1, N).repeat(1, 1, 1, C, 1)
         return fs.permute(4, 3, 0, 1, 2).reshape(N, -1)
@@ -121,7 +121,7 @@ class MultiFreqEncoder(nn.Module):
         for i, scale in enumerate(self.scales):
             # 23xCx1xN + 23x1x1xN
             num_channels = self.features[i].shape[1]
-            fs = grid_sample(self.features[i], grid[i], True).view(2, self.x_dim, num_channels, -1)
+            fs = grid_sample(self.features[i], grid[i]).view(2, self.x_dim, num_channels, -1)
             latents.append(fs.permute(3, 2, 0, 1))
 
         # Fx2x3xCxN
