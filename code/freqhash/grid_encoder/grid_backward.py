@@ -13,15 +13,15 @@ class grid_backward(Function):
 
         dy_dx = torch.zeros((N, C, OH, OW, 2), device=grids.device, dtype=grids.dtype)
 
-        ctx.save_for_backward(grad_output, grids, dy_dx)
-        ctx.dims = [N, C, IH, IW, OH, OW]
-
         if not grad_output.is_contiguous():
             grad_output = grad_output.contiguous()
         if not features.is_contiguous():
             features = features.contiguous()
         if not grids.is_contiguous():
             grids = grids.contiguous()
+
+        ctx.save_for_backward(grad_output, grids, dy_dx)
+        ctx.dims = [N, C, IH, IW, OH, OW]
 
         _backend.grid_backward(grad_output, features, grids, dy_dx, grad_features, grad_grids, N, C, IH, IW, OH, OW)
         
@@ -32,6 +32,9 @@ class grid_backward(Function):
         grad_output, grids, dy_dx = ctx.saved_tensors
         N, C, IH, IW, OH, OW = ctx.dims
         grad_grad = (dy_dx * grad_grad_grids.unsqueeze(1)).sum(-1)
+
+        if not grad_grad_grids.is_contiguous():
+            grad_grad_grids = grad_grad_grids.contiguous()
 
         # NxCxIHxIW
         grad2_features = torch.zeros_like(grad_grad_features)
