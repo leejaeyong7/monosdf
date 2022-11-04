@@ -303,7 +303,7 @@ def get_surface_high_res_mesh(sdf, resolution=100, grid_boundary=[-2.0, 2.0], le
                    verts.unsqueeze(-1)).squeeze()
         verts = (verts + grid_points[0]).cpu().numpy()
 
-        meshexport = trimesh.Trimesh(verts, faces, normals)
+        meshexport = trimesh.Trimesh(verts, faces)
 
     return meshexport
 
@@ -337,7 +337,7 @@ def get_surface_by_grid(grid_params, sdf, resolution=100, level=0, higher_res=Fa
 
         verts = verts + np.array([grid['xyz'][0][0], grid['xyz'][1][0], grid['xyz'][2][0]])
 
-        mesh_low_res = trimesh.Trimesh(verts, faces, normals)
+        mesh_low_res = trimesh.Trimesh(verts, faces)
         components = mesh_low_res.split(only_watertight=False)
         areas = np.array([c.area for c in components], dtype=np.float)
         mesh_low_res = components[areas.argmax()]
@@ -396,7 +396,7 @@ def get_surface_by_grid(grid_params, sdf, resolution=100, level=0, higher_res=Fa
         else:
             verts = verts + np.array([grid_aligned['xyz'][0][0], grid_aligned['xyz'][1][0], grid_aligned['xyz'][2][0]])
 
-        meshexport = trimesh.Trimesh(verts, faces, normals)
+        meshexport = trimesh.Trimesh(verts, faces)
 
         # CUTTING MESH ACCORDING TO THE BOUNDING BOX
         if higher_res:
