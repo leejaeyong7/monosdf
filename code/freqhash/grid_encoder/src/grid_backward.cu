@@ -61,13 +61,20 @@ __global__ void kernel_grid_backward(
 
     const scalar_t gx = (grid[0] + 1) / 2.0 * (IW - 1);
     const scalar_t gy = (grid[1] + 1) / 2.0 * (IH - 1);
+    if((gx < 0) || (gx > (IW - 1)) || (gy < 0) || (gy > (IH - 1))){
+        return;
+    }
 
-    const uint32_t x0 = max(min((uint32_t)floor(gx), IW - 2), 0);
-    const uint32_t y0 = max(min((uint32_t)floor(gy), IH - 2), 0);
-    const uint32_t x1 = x0 + 1;
-    const uint32_t y1 = y0 + 1;
-    const scalar_t wx = min(max((gx - (scalar_t)x0), (scalar_t)0), (scalar_t)1);
-    const scalar_t wy = min(max((gy - (scalar_t)y0), (scalar_t)0), (scalar_t)1);
+    // const uint32_t x0 = max(min((uint32_t)floor(gx), IW - 2), 0);
+    // const uint32_t y0 = max(min((uint32_t)floor(gy), IH - 2), 0);
+    const uint32_t x0 = (uint32_t)floor(gx);
+    const uint32_t y0 = (uint32_t)floor(gy);
+    const uint32_t x1 = (uint32_t)ceil(gx);
+    const uint32_t y1 = (uint32_t)ceil(gy);
+    // const scalar_t wx = min(max((gx - (scalar_t)x0), (scalar_t)0), (scalar_t)1);
+    // const scalar_t wy = min(max((gy - (scalar_t)y0), (scalar_t)0), (scalar_t)1);
+    const scalar_t wx = (gx - (scalar_t)x0);
+    const scalar_t wy = (gy - (scalar_t)y0);
 
     scalar_t sx = (scalar_t)(IW - 1) / 2.0;
     scalar_t sy = (scalar_t)(IH - 1) / 2.0;
@@ -210,13 +217,26 @@ __global__ void kernel_grid_backward_backward(
 
     const scalar_t gx = (grid[0] + 1) / 2.0 * (IW - 1);
     const scalar_t gy = (grid[1] + 1) / 2.0 * (IH - 1);
+    if((gx < 0) || (gx > (IW - 1)) || (gy < 0) || (gy > (IH - 1))){
+        return;
+    }
 
-    const uint32_t x0 = max(min((uint32_t)floor(gx), IW - 2), 0);
-    const uint32_t y0 = max(min((uint32_t)floor(gy), IH - 2), 0);
-    const uint32_t x1 = x0 + 1;
-    const uint32_t y1 = y0 + 1;
-    const scalar_t wx = min(max((gx - (scalar_t)x0), (scalar_t)0), (scalar_t)1);
-    const scalar_t wy = min(max((gy - (scalar_t)y0), (scalar_t)0), (scalar_t)1);
+    // const uint32_t x0 = max(min((uint32_t)floor(gx), IW - 2), 0);
+    // const uint32_t y0 = max(min((uint32_t)floor(gy), IH - 2), 0);
+    // const uint32_t x1 = x0 + 1;
+    // const uint32_t y1 = y0 + 1;
+    // const scalar_t wx = min(max((gx - (scalar_t)x0), (scalar_t)0), (scalar_t)1);
+    // const scalar_t wy = min(max((gy - (scalar_t)y0), (scalar_t)0), (scalar_t)1);
+    // const uint32_t x0 = max(min((uint32_t)floor(gx), IW - 2), 0);
+    // const uint32_t y0 = max(min((uint32_t)floor(gy), IH - 2), 0);
+    const uint32_t x0 = (uint32_t)floor(gx);
+    const uint32_t y0 = (uint32_t)floor(gy);
+    const uint32_t x1 = (uint32_t)ceil(gx);
+    const uint32_t y1 = (uint32_t)ceil(gy);
+    // const scalar_t wx = min(max((gx - (scalar_t)x0), (scalar_t)0), (scalar_t)1);
+    // const scalar_t wy = min(max((gy - (scalar_t)y0), (scalar_t)0), (scalar_t)1);
+    const scalar_t wx = (gx - (scalar_t)x0);
+    const scalar_t wy = (gy - (scalar_t)y0);
 
     const scalar_t ggx = grad_grad_grid[0];
     const scalar_t ggy = grad_grad_grid[1];
