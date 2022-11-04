@@ -212,7 +212,7 @@ class MonoSDFTrainRunner():
                 
                 split = utils.split_input(model_input, self.total_pixels, n_pixels=self.split_n_pixels)
                 res = []
-                for s in tqdm(split):
+                for s in tqdm(split, leave=False, dynamic_ncols=True, desc='Evaluating'):
                     out = self.model(s, indices)
                     d = {'rgb_values': out['rgb_values'].detach(),
                          'normal_map': out['normal_map'].detach(),
@@ -270,8 +270,8 @@ class MonoSDFTrainRunner():
                     #                 self.model.density.get_beta().item(),
                     #                 1. / self.model.density.get_beta().item()))
                     train_iterator.set_description(
-                        '{0}: loss = {1:.04f}, rgb_loss = {2:.04f}, eikonal_loss = {3:.04f}, psnr = {4:.1f}, bete={5:.04f}, alpha={6:.04f}'
-                            .format(self.expname, loss.item(),
+                        '[{0}]{1}: loss = {2:.04f}, rgb_loss = {3:.04f}, eikonal_loss = {4:.04f}, psnr = {5:.1f}, bete={6:.04f}, alpha={7:.04f}'
+                            .format(epoch, self.expname, loss.item(),
                                     loss_output['rgb_loss'].item(),
                                     loss_output['eikonal_loss'].item(),
                                     psnr.item(),

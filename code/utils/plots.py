@@ -130,7 +130,7 @@ def get_surface_sliding(path, epoch, sdf, resolution=100, grid_boundary=[-2.0, 2
                             (z_max - z_min)/(cropN-1) ))
                     verts = verts + np.array([x_min, y_min, z_min])
                     
-                    meshcrop = trimesh.Trimesh(verts, faces, normals)
+                    meshcrop = trimesh.Trimesh(verts, faces)
                     #meshcrop.export(f"{i}_{j}_{k}.ply")
                     meshes.append(meshcrop)
 
