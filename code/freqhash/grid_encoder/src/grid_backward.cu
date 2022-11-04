@@ -55,6 +55,9 @@ __global__ void kernel_grid_backward(
     grad_outputs = grad_outputs + n * C * OH * OW + oh * OW + ow;
     grid = grid + n * OH * OW * 2 + oh* OW * 2  + ow * 2;
     grad_grid = grad_grid + n * OH * OW * 2 + oh* OW * 2  + ow * 2;
+    grad_features = grad_features + n * C * IH * IW;
+    features = features + n * C * IH * IW;
+    dy_dx = dy_dx + n * C * OH * OW * 2;
 
     const scalar_t gx = (grid[0] + 1) / 2.0 * (IW - 1);
     const scalar_t gy = (grid[1] + 1) / 2.0 * (IH - 1);
@@ -69,12 +72,20 @@ __global__ void kernel_grid_backward(
     scalar_t sx = (scalar_t)(IW - 1) / 2.0;
     scalar_t sy = (scalar_t)(IH - 1) / 2.0;
 
+    // pre-compute values
+    const uint32_t c00 = y0 * IW + x0;
+    const uint32_t c01 = y0 * IW + x1;
+    const uint32_t c10 = y1 * IW + x0;
+    const uint32_t c11 = y1 * IW + x1;
+    const uint32_t cxy = oh * OW + ow;
+
+
 
     for(uint32_t c = 0; c < C; c++){
-        const uint32_t o00  = n * C * IH * IW + c * IH * IW + y0 * IW + x0;
-        const uint32_t o01  = n * C * IH * IW + c * IH * IW + y0 * IW + x1;
-        const uint32_t o10  = n * C * IH * IW + c * IH * IW + y1 * IW + x0;
-        const uint32_t o11  = n * C * IH * IW + c * IH * IW + y1 * IW + x1;
+        const uint32_t o00  = c * IH * IW + c00;
+        const uint32_t o01  = c * IH * IW + c01;
+        const uint32_t o10  = c * IH * IW + c10;
+        const uint32_t o11  = c * IH * IW + c11;
         const scalar_t go = (grad_outputs + c * OH * OW)[0];
 
         // compute grad features
@@ -89,19 +100,14 @@ __global__ void kernel_grid_backward(
         const scalar_t f10 = features[o10];
         const scalar_t f11 = features[o11];
 
-        const uint32_t g0 = n * C * OH * OW * 2 + c * OH * OW * 2 + oh * OW * 2 + ow * 2;
+        const uint32_t g0 = (c * OH * OW  + cxy) * 2;
         const scalar_t g0x = -f00 * (1 - wy) + f01 * (1 - wy) - f10 * (wy)     + f11 * wy;
         const scalar_t g0y = -f00 * (1 - wx) - f01 * wx       + f10 * (1 - wx) + f11 * wx;
         const scalar_t dgx = g0x * sx;
         const scalar_t dgy = g0y * sy;
+
         dy_dx[g0] = dgx;
         dy_dx[g0 + 1] = dgy;
-
-        // compute grad features
-        atomicAdd(grad_features + o00, go * (1 - wx) * (1 - wy));
-        atomicAdd(grad_features + o01, go * (wx) * (1 - wy));
-        atomicAdd(grad_features + o10, go * (1 - wx) * (wy));
-        atomicAdd(grad_features + o11, go * wx * wy);
 
         // compute grad grid
         grad_grid[0] += dgx * go;
@@ -200,6 +206,7 @@ __global__ void kernel_grid_backward_backward(
     grad_outputs = grad_outputs + n * C * OH * OW + oh * OW + ow;
     grid = grid + n * OH * OW * 2 + oh* OW * 2  + ow * 2;
     grad_grad_grid = grad_grad_grid + n * OH * OW * 2 + oh* OW * 2  + ow * 2;
+    grad2_features = grad2_features + n * C * IH * IW;
 
     const scalar_t gx = (grid[0] + 1) / 2.0 * (IW - 1);
     const scalar_t gy = (grid[1] + 1) / 2.0 * (IH - 1);
@@ -216,11 +223,17 @@ __global__ void kernel_grid_backward_backward(
     const scalar_t sx = (scalar_t)(IW - 1) / 2.0 * ggx;
     const scalar_t sy = (scalar_t)(IH - 1) / 2.0 * ggy;
 
+    // pre-compute values
+    const uint32_t c00 = y0 * IW + x0;
+    const uint32_t c01 = y0 * IW + x1;
+    const uint32_t c10 = y1 * IW + x0;
+    const uint32_t c11 = y1 * IW + x1;
+
     for(uint32_t c = 0; c < C; c++){
-        const uint32_t o00  = n * C * IH * IW + c * IH * IW + y0 * IW + x0;
-        const uint32_t o01  = n * C * IH * IW + c * IH * IW + y0 * IW + x1;
-        const uint32_t o10  = n * C * IH * IW + c * IH * IW + y1 * IW + x0;
-        const uint32_t o11  = n * C * IH * IW + c * IH * IW + y1 * IW + x1;
+        const uint32_t o00  = c * IH * IW + c00;
+        const uint32_t o01  = c * IH * IW + c01;
+        const uint32_t o10  = c * IH * IW + c10;
+        const uint32_t o11  = c * IH * IW + c11;
         const scalar_t go = (grad_outputs + c * OH * OW)[0];
 
         atomicAdd(grad2_features + o00, go * (-(1 - wy) * sx - (1 - wx) * sy));

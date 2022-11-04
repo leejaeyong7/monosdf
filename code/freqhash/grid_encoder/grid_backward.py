@@ -25,7 +25,7 @@ class grid_backward(Function):
 
         _backend.grid_backward(grad_output, features, grids, dy_dx, grad_features, grad_grids, N, C, IH, IW, OH, OW)
         
-        return grad_features / 2, grad_grids
+        return grad_features, grad_grids
 
     @staticmethod
     def backward(ctx, grad_grad_features, grad_grad_grids):
@@ -34,7 +34,7 @@ class grid_backward(Function):
         grad_grad = (dy_dx * grad_grad_grids.unsqueeze(1)).sum(-1)
 
         if not grad_grad_grids.is_contiguous():
-            grad_grad_grids = grad_grad_grids.contiguous()
+            grad_grad_grids = grids.contiguous()
 
         # NxCxIHxIW
         grad2_features = torch.zeros_like(grad_grad_features)
