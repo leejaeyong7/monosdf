@@ -34,7 +34,7 @@ class grid_backward(Function):
         grad_grad = (dy_dx * grad_grad_grids.unsqueeze(1)).sum(-1)
 
         if not grad_grad_grids.is_contiguous():
-            grad_grad_grids = grids.contiguous()
+            grad_grad_grids = grad_grad_grids.contiguous()
 
         # NxCxIHxIW
         grad2_features = torch.zeros_like(grad_grad_features)
