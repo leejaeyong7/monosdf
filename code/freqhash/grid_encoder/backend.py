@@ -3,7 +3,7 @@ import os
 from torch.utils.cpp_extension import load
 from pathlib import Path
 
-Path('./tmp_build_grid/').mkdir(parents=True, exist_ok=True)
+Path('./tmp_build_grid_encoder/').mkdir(parents=True, exist_ok=True)
 
 _src_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -17,7 +17,7 @@ _backend = load(name='_grid_backward',
                     'grid_backward.cu',
                     'bindings.cpp',
                 ]],
-                build_directory='./tmp_build_grid/',
+                build_directory='./tmp_build_grid_encoder/',
                 verbose=True,
                 )
 
