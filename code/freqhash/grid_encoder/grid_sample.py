@@ -49,8 +49,8 @@ def grid_sample_2d(mat, sample):
 
 
 def grid_sample(input, grid):
-    if input.shape[-1] == 1:
-        return grid_sample_1d(input, grid)
+    # if input.shape[-1] == 1:
+    #     return grid_sample_1d(input, grid)
     # else:
     #     return grid_sample_2d(input, grid)
     return grid_sample_cuda.apply(input, grid)
