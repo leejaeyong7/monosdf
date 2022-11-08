@@ -402,6 +402,7 @@ class ImplicitNetworkFreq(nn.Module):
                     torch.nn.init.constant_(lin.bias, 0.0)
                     torch.nn.init.normal_(lin.weight, 0.0, np.sqrt(2) / np.sqrt(out_dim))
 
+            # if weight_norm and (l != 0):
             if weight_norm:
                 lin = nn.utils.weight_norm(lin)
 

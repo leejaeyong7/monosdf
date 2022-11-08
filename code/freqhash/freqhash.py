@@ -4,26 +4,6 @@ import torch.nn as nn
 
 from .grid_encoder import grid_sample
 
-class FreqHashO(nn.Module):
-    def __init__(self, log2_res=8, num_freqs=6, num_channels=48, std=0.001):
-        super().__init__()
-        min_log2_freq = 0
-        max_log2_freq = num_freqs - 1
-        freqs = 2.0 ** torch.linspace(min_log2_freq, max_log2_freq, num_freqs)
-        self.freqs = nn.Parameter(freqs, False)
-        self.num_channels = num_channels
-
-    def pos_encode(self, points):
-        N = points.shape[0]
-        freq_points = points.view(N, 1, -1) * self.freqs.to(points).view(1, -1, 1)
-
-        return torch.stack((freq_points.sin(), freq_points.cos()), -2).view(N, -1).repeat(1, self.num_channels)
-
-    def forward(self, points):
-        """
-        must return features given points (and optional dirs)
-        """
-        return self.pos_encode(points)
 
 class FreqHash(nn.Module):
     def __init__(self, log2_res=8, num_freqs=6, num_channels=48, std=0.001):
@@ -67,8 +47,8 @@ class FreqHash(nn.Module):
         """
         must return features given points (and optional dirs)
         """
-        enc = self.pos_encode(points / scale)
-        oenc = self.pos_encode(points / scale)
+        enc = self.pos_encode(points / scale * math.pi)
+        oenc = self.pos_encode(points)
         return self.encoder(enc, oenc)
 
 
