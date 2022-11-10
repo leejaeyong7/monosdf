@@ -137,7 +137,7 @@ class ImplicitNetwork(nn.Module):
         return sdf
 
 
-from hashencoder.hashgrid import _hash_encode, HashEncoder
+# from hashencoder.hashgrid import _hash_encode, HashEncoder
 class ImplicitNetworkGrid(nn.Module):
     def __init__(
             self,

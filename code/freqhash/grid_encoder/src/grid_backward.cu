@@ -19,13 +19,6 @@
 #define CHECK_IS_FLOATING(x) TORCH_CHECK(x.scalar_type() == at::ScalarType::Float || x.scalar_type() == at::ScalarType::Half || x.scalar_type() == at::ScalarType::Double, #x " must be a floating tensor")
 
 
-// requires CUDA >= 10 and ARCH >= 70
-// this is very slow compared to float or __half2, do not use!
-static inline  __device__ at::Half atomicAdd(at::Half *address, at::Half val) {
-  return atomicAdd(reinterpret_cast<__half*>(address), val);
-}
-
-
 template <typename T>
 static inline __host__ __device__ T div_round_up(T val, T divisor) {
 	return (val + divisor - 1) / divisor;
