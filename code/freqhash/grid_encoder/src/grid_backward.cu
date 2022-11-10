@@ -118,7 +118,7 @@ void grid_backward_backward_cuda(
 
     static constexpr uint32_t N_THREAD = 256;
 	const dim3 blocks_hashgrid = { div_round_up(N * OH * OW, N_THREAD), 1, 1 };
-    kernel_grid_backward_backward<float><<<blocks_hashgrid, N_THREAD>>>(
+    kernel_grid_backward_backward<<<blocks_hashgrid, N_THREAD>>>(
         grad_grad_grids,
         grad_outputs,
         features,
@@ -155,7 +155,7 @@ void grid_backward_backward(
     CHECK_CONTIGUOUS(grad2_grad);
     CHECK_CONTIGUOUS(grad2_features);
 
-    grid_backward_backward_cuda<float>(
+    grid_backward_backward_cuda(
         grad_grad_grid.data_ptr<float>(), 
         grad_outputs.data_ptr<float>(), 
         features.data_ptr<float>(), 
