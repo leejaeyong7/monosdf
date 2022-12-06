@@ -10,6 +10,9 @@ import cv2
 import random
 import json
 
+import math
+from pathlib import Path
+
 
 # Dataset with monocular depth and normal
 class ETH3DDataset(torch.utils.data.Dataset):
@@ -19,13 +22,13 @@ class ETH3DDataset(torch.utils.data.Dataset):
                  scan_id=0,
                  num_views=-1):
         scan_to_scene = ['courtyard']
-        self.instance_dir = os.path.join('../data', data_dir, 'scan{0}'.format(scan_id))
+        self.instance_dir = Path('../data') / data_dir / scan_to_scene[scan_id]
         self.total_pixels = img_res[0] * img_res[1]
         self.img_res = img_res
         self.num_views = num_views
         assert num_views in [-1, 3, 6, 9]
         
-        assert os.path.exists(self.instance_dir), "Data directory is empty"
+        assert self.instance_dir.exists(), "Data directory is empty"
 
         self.sampling_idx = None
         
@@ -38,22 +41,34 @@ class ETH3DDataset(torch.utils.data.Dataset):
         self.rgb_images = []
         self.depth_images = []
         self.normal_images = []
+        self.mask_images = []
 
 
         intrinsic = torch.eye(4)
 
-        if 'fx' in trans_json:
+        if 'fl_x' in trans_json:
             intrinsic[0, 0] = trans_json['fl_x']
             intrinsic[1, 1] = trans_json['fl_y']
             intrinsic[0, 2] = trans_json['cx']
             intrinsic[1, 2] = trans_json['cy']
+        else:
+            fovx = trans_json['camera_angle_x']
+            w = img_res[0]
+            h = img_res[1]
+            cx = w / 2.0 
+            cy = h / 2.0 
+            fx = math.tan(fovx / 2.0) 
+            fy = fx
+            intrinsic[0, 0] = fx
+            intrinsic[1, 1] = fy
+            intrinsic[0, 2] = cx
+            intrinsic[1, 2] = cy
 
         for frame in trans_json['frames']:
-            rgb = rend_util.load_rgb(frame['file_path'])
-            rgb = rgb.reshape(3, -1).transpose(1, 0)
+            rgb = rend_util.load_rgb(self.instance_dir / frame['file_path'])
 
-            normal = rend_util.load_normal(frame['normal_file_path'])
-            depth = rend_util.load_depth(frame['depth_file_path'])
+            normal = rend_util.load_normal(self.instance_dir / frame['normal_file_path'])
+            depth = rend_util.load_depth(self.instance_dir / frame['depth_file_path'])
             mask = np.ones_like(depth)
 
             pose = torch.tensor(frame['transform_matrix'])
@@ -61,10 +76,10 @@ class ETH3DDataset(torch.utils.data.Dataset):
             pose[:, 2] *= -1
 
 
-            self.rgb_images.append(torch.from_numpy(rgb).float())
-            self.normal_images.append(torch.from_numpy(normal).float())
-            self.depth_images.append(torch.from_numpy(depth).float())
-            self.mask_images.append(torch.from_numpy(mask).float())
+            self.rgb_images.append(torch.from_numpy(rgb).float().view(3, -1).T)
+            self.normal_images.append(torch.from_numpy(normal).float().view(3, -1).T)
+            self.depth_images.append(torch.from_numpy(depth).float().view(1, -1).T)
+            self.mask_images.append(torch.from_numpy(mask).float().view(1, -1).T)
 
             self.intrinsics_all.append(intrinsic)
             self.pose_all.append(pose)
