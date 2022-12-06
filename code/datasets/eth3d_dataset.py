@@ -21,7 +21,20 @@ class ETH3DDataset(torch.utils.data.Dataset):
                  img_res=[640, 960],
                  scan_id=0,
                  num_views=-1):
-        scan_to_scene = ['courtyard']
+        scan_to_scene = ['courtyard',
+            "delivery_area",
+            "electro",
+            "facade",
+            "kicker",
+            "meadow",
+            "office",
+            "pipes",
+            "playground",
+            "relief",
+            "relief_2",
+            "terrace",
+            "terrains"
+        ]
         self.instance_dir = Path('../data') / data_dir / scan_to_scene[scan_id]
         self.total_pixels = img_res[0] * img_res[1]
         self.img_res = img_res
