@@ -5,6 +5,7 @@ import cv2
 import torch
 from torch.nn import functional as F
 
+import re
 
 def get_psnr(img1, img2, normalize_rgb=False):
     if normalize_rgb: # [-1,1] --> [0,1]
@@ -26,6 +27,55 @@ def load_rgb(path, normalize_rgb = False):
         img *= 2.
     img = img.transpose(2, 0, 1)
     return img
+
+def load_normal(path):
+    img = imageio.imread(path) / 255.0
+    img *= 2
+    img -= 1
+
+    img = img.transpose(2, 0, 1)
+    return img
+
+def load_depth(pfm_file_path: str)-> torch.Tensor:
+    """parses PFM file into torch float tensor
+
+    :param pfm_file_path: path like object that contains full path to the PFM file
+
+    :returns: parsed PFM file of shape CxHxW
+    """
+    color = None
+    width = None
+    height = None
+    scale = None
+    data_type = None
+    with open(pfm_file_path, 'rb') as file:
+        header = file.readline().decode('UTF-8').rstrip()
+
+        if header == 'PF':
+            color = True
+        elif header == 'Pf':
+            color = False
+        else:
+            raise Exception('Not a PFM file.')
+        dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline().decode('UTF-8'))
+
+        if dim_match:
+            width, height = map(int, dim_match.groups())
+        else:
+            raise Exception('Malformed PFM header.')
+
+        # scale = float(file.readline().rstrip())
+        scale = float((file.readline()).decode('UTF-8').rstrip())
+        if scale < 0: # little-endian
+            data_type = '<f'
+        else:
+            data_type = '>f' # big-endian
+        data_string = file.read()
+        data = np.fromstring(data_string, data_type)
+        shape = (height, width, 3) if color else (height, width)
+        data = np.reshape(data, shape)
+        data = np.ascontiguousarray(np.flip(data, 0))
+    return data.reshape(height, width, -1).transpose(2, 0, 1)
 
 
 def load_K_Rt_from_P(filename, P=None):
