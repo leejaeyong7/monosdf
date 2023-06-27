@@ -27,7 +27,7 @@ evaluation_txt_file = "evaluation/DTU.csv"
 evaluation_txt_file = open(evaluation_txt_file, 'w')
 
 root_dir = '../exps/'
-exp_names =["dtu_3views"]
+exp_names =["dtu_qff_3views"]
 
 for exp in exp_names:    
     for scan in scans:
