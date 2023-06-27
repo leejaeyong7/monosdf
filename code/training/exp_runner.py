@@ -3,6 +3,8 @@ import sys
 sys.path.append('../code')
 import argparse
 import torch
+torch.backends.cudnn.enabled = True
+torch.backends.cudnn.benchmark = True
 
 import os
 from training.monosdf_train import MonoSDFTrainRunner
@@ -26,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument('--scan_id', type=int, default=-1, help='If set, taken to be the scan id.')
     parser.add_argument('--cancel_vis', default=False, action="store_true",
                         help='If set, cancel visualization in intermediate epochs.')
-    parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
+    # parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
 
     opt = parser.parse_args()
 
@@ -38,7 +40,8 @@ if __name__ == '__main__':
     else:
         gpu = opt.gpu
     '''
-    gpu = opt.local_rank
+    # gpu = opt.local_rank
+    gpu = 0
 
     # set distributed training
     if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
@@ -49,10 +52,8 @@ if __name__ == '__main__':
         rank = -1
         world_size = -1
 
-    print(opt.local_rank)
-    torch.cuda.set_device(opt.local_rank)
-    torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank, timeout=datetime.timedelta(1, 1800))
-    torch.distributed.barrier()
+    # torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank, timeout=datetime.timedelta(1, 1800))
+    # torch.distributed.barrier()
 
 
     trainrunner = MonoSDFTrainRunner(conf=opt.conf,

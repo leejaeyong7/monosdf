@@ -22,6 +22,8 @@ class MonoSDFTrainRunner():
         torch.set_default_dtype(torch.float32)
         torch.set_num_threads(1)
 
+        self.log_to_tb = False
+
         self.conf = ConfigFactory.parse_file(kwargs['conf'])
         self.batch_size = kwargs['batch_size']
         self.nepochs = kwargs['nepochs']
@@ -116,6 +118,7 @@ class MonoSDFTrainRunner():
         self.lr = self.conf.get_float('train.learning_rate')
         self.lr_factor_for_grid = self.conf.get_float('train.lr_factor_for_grid', default=1.0)
         self.lr_factor_for_qff = self.conf.get_float('train.lr_factor_for_qff', default=1.0)
+
         
         
         if self.QFF_MLP:
@@ -146,7 +149,7 @@ class MonoSDFTrainRunner():
         decay_steps = self.nepochs * len(self.train_dataset)
         self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, decay_rate ** (1./decay_steps))
 
-        self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[self.GPU_INDEX], broadcast_buffers=False, find_unused_parameters=True)
+        # self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[self.GPU_INDEX], broadcast_buffers=False, find_unused_parameters=True)
         
         self.do_vis = kwargs['do_vis']
 
@@ -201,7 +204,7 @@ class MonoSDFTrainRunner():
 
     def run(self):
         print("training...")
-        if self.GPU_INDEX == 0 :
+        if self.log_to_tb:
             self.writer = SummaryWriter(log_dir=os.path.join(self.plots_dir, 'logs'))
 
         self.iter_step = 0
@@ -237,7 +240,7 @@ class MonoSDFTrainRunner():
                 model_outputs = utils.merge_output(res, self.total_pixels, batch_size)
                 plot_data = self.get_plot_data(model_input, model_outputs, model_input['pose'], ground_truth['rgb'], ground_truth['normal'], ground_truth['depth'])
 
-                plt.plot(self.model.module.implicit_network,
+                plt.plot(self.model.implicit_network,
                         indices,
                         plot_data,
                         self.plots_dir,
@@ -268,16 +271,17 @@ class MonoSDFTrainRunner():
                 
                 self.iter_step += 1                
                 
-                if self.GPU_INDEX == 0:
+                if self.iter_step % 100 == 0:
                     print(
                         '{0}_{1} [{2}] ({3}/{4}): loss = {5}, rgb_loss = {6}, eikonal_loss = {7}, psnr = {8}, bete={9}, alpha={10}'
                             .format(self.expname, self.timestamp, epoch, data_index, self.n_batches, loss.item(),
                                     loss_output['rgb_loss'].item(),
                                     loss_output['eikonal_loss'].item(),
                                     psnr.item(),
-                                    self.model.module.density.get_beta().item(),
-                                    1. / self.model.module.density.get_beta().item()))
+                                    self.model.density.get_beta().item(),
+                                    1. / self.model.density.get_beta().item()), flush=True)
                     
+                if self.log_to_tb:
                     self.writer.add_scalar('Loss/loss', loss.item(), self.iter_step)
                     self.writer.add_scalar('Loss/color_loss', loss_output['rgb_loss'].item(), self.iter_step)
                     self.writer.add_scalar('Loss/eikonal_loss', loss_output['eikonal_loss'].item(), self.iter_step)
@@ -286,11 +290,11 @@ class MonoSDFTrainRunner():
                     self.writer.add_scalar('Loss/normal_l1_loss', loss_output['normal_l1'].item(), self.iter_step)
                     self.writer.add_scalar('Loss/normal_cos_loss', loss_output['normal_cos'].item(), self.iter_step)
                     
-                    self.writer.add_scalar('Statistics/beta', self.model.module.density.get_beta().item(), self.iter_step)
-                    self.writer.add_scalar('Statistics/alpha', 1. / self.model.module.density.get_beta().item(), self.iter_step)
+                    self.writer.add_scalar('Statistics/beta', self.model.density.get_beta().item(), self.iter_step)
+                    self.writer.add_scalar('Statistics/alpha', 1. / self.model.density.get_beta().item(), self.iter_step)
                     self.writer.add_scalar('Statistics/psnr', psnr.item(), self.iter_step)
                     
-                    if self.Grid_MLP:
+                    if self.Grid_MLP or self.QFF_MLP:
                         self.writer.add_scalar('Statistics/lr0', self.optimizer.param_groups[0]['lr'], self.iter_step)
                         self.writer.add_scalar('Statistics/lr1', self.optimizer.param_groups[1]['lr'], self.iter_step)
                         self.writer.add_scalar('Statistics/lr2', self.optimizer.param_groups[2]['lr'], self.iter_step)
