@@ -107,6 +107,7 @@ class MonoSDFTrainRunner():
         self.model = utils.get_class(self.conf.get_string('train.model_class'))(conf=conf_model)
 
         self.Grid_MLP = self.model.Grid_MLP
+        self.QFF_MLP = self.model.QFF_MLP
         if torch.cuda.is_available():
             self.model.cuda()
 
@@ -114,8 +115,20 @@ class MonoSDFTrainRunner():
 
         self.lr = self.conf.get_float('train.learning_rate')
         self.lr_factor_for_grid = self.conf.get_float('train.lr_factor_for_grid', default=1.0)
+        self.lr_factor_for_qff = self.conf.get_float('train.lr_factor_for_qff', default=1.0)
         
-        if self.Grid_MLP:
+        
+        if self.QFF_MLP:
+            self.optimizer = torch.optim.Adam([
+                {'name': 'encoding', 'params': list(self.model.implicit_network.qff_parameters()), 
+                    'lr': self.lr * self.lr_factor_for_qff},
+                {'name': 'net', 'params': list(self.model.implicit_network.mlp_parameters()) +\
+                    list(self.model.rendering_network.parameters()),
+                    'lr': self.lr},
+                {'name': 'density', 'params': list(self.model.density.parameters()),
+                    'lr': self.lr},
+            ], betas=(0.9, 0.99), eps=1e-15)
+        elif self.Grid_MLP:
             self.optimizer = torch.optim.Adam([
                 {'name': 'encoding', 'params': list(self.model.implicit_network.grid_parameters()), 
                     'lr': self.lr * self.lr_factor_for_grid},
