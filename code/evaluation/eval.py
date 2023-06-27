@@ -31,6 +31,7 @@ def evaluate(**kwargs):
     
     # use all images for evaluation
     dataset_conf['num_views'] = -1
+    dataset_conf['dataset_folder'] = kwargs['data_folder']
 
     eval_dataset = utils.get_class(conf.get_string('train.dataset_class'))(**dataset_conf)
 
@@ -136,6 +137,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--conf', type=str, default='./confs/dtu.conf')
     parser.add_argument('--evals_folder', type=str, default='evals', help='The evaluation folder name.')
+    parser.add_argument('--data_folder', type=str, default='../data', help='The data folder name.')
     parser.add_argument('--checkpoint', default='latest',type=str,help='The trained model checkpoint to test')
     parser.add_argument('--scan_id', type=int, default=-1, help='If set, taken to be the scan id.')
     parser.add_argument('--resolution', default=1024, type=int, help='Grid resolution for marching cube')
@@ -146,6 +148,7 @@ if __name__ == '__main__':
 
     evaluate(conf=opt.conf,
              evals_folder_name=opt.evals_folder,
+             data_folder_name=opt.data_folder,
              checkpoint=opt.checkpoint,
              scan_id=opt.scan_id,
              resolution=opt.resolution,

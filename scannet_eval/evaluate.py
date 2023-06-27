@@ -138,8 +138,8 @@ def refuse(mesh, poses, K):
 
 
 root_dir = "../exps/"
-exp_name = "scannet_mlp"
-out_dir = "evaluation/scannet_mlp"
+exp_name = "scannet_qff"
+out_dir = "evaluation/scannet_qff"
 Path(out_dir).mkdir(parents=True, exist_ok=True)
 
 

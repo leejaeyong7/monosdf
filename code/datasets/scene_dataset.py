@@ -12,13 +12,14 @@ import random
 class SceneDataset(torch.utils.data.Dataset):
 
     def __init__(self,
+                 dataset_folder,
                  data_dir,
                  img_res,
                  scan_id=0,
                  num_views=-1,  
                  ):
 
-        self.instance_dir = os.path.join('../data', data_dir, 'scan{0}'.format(scan_id))
+        self.instance_dir = os.path.join(dataset_folder, data_dir, 'scan{0}'.format(scan_id))
 
         self.total_pixels = img_res[0] * img_res[1]
         self.img_res = img_res
@@ -129,6 +130,7 @@ class SceneDataset(torch.utils.data.Dataset):
 class SceneDatasetDN(torch.utils.data.Dataset):
 
     def __init__(self,
+                 dataset_folder,
                  data_dir,
                  img_res,
                  scan_id=0,
@@ -137,7 +139,7 @@ class SceneDatasetDN(torch.utils.data.Dataset):
                  num_views=-1
                  ):
 
-        self.instance_dir = os.path.join('../data', data_dir, 'scan{0}'.format(scan_id))
+        self.instance_dir = os.path.join(dataset_folder, data_dir, 'scan{0}'.format(scan_id))
 
         self.total_pixels = img_res[0] * img_res[1]
         self.img_res = img_res
