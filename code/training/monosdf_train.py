@@ -80,6 +80,9 @@ class MonoSDFTrainRunner():
         print('Loading data ...')
 
         dataset_conf = self.conf.get_config('dataset')
+        dataset_folder = kwargs['data_folder_name']
+        dataset_conf['dataset_folder'] = dataset_folder
+
         if kwargs['scan_id'] != -1:
             dataset_conf['scan_id'] = kwargs['scan_id']
 
