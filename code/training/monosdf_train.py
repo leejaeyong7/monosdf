@@ -55,7 +55,10 @@ class MonoSDFTrainRunner():
             utils.mkdir_ifnotexists(os.path.join('../',self.exps_folder_name))
             self.expdir = os.path.join('../', self.exps_folder_name, self.expname)
             utils.mkdir_ifnotexists(self.expdir)
-            self.timestamp = '{:%Y_%m_%d_%H_%M_%S}'.format(datetime.now())
+            if timestamp == 'latest':
+                self.timestamp = '{:%Y_%m_%d_%H_%M_%S}'.format(datetime.now())
+            else:
+                self.timestamp = timestamp
             utils.mkdir_ifnotexists(os.path.join(self.expdir, self.timestamp))
 
             self.plots_dir = os.path.join(self.expdir, self.timestamp, 'plots')
