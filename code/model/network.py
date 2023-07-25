@@ -411,7 +411,7 @@ class ImplicitNetworkQFF(nn.Module):
 
     def forward(self, input):
         # normalize point range as encoding assume points are in [-1, 1]
-        feature = self.encoding(input / self.divide_factor)
+        feature = self.encoding((input / self.divide_factor) * 0.5 + 0.5)
                     
         if self.embed_fn is not None:
             embed = self.embed_fn(input)

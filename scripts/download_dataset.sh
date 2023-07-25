@@ -14,6 +14,7 @@ tar -xf scannet.tar
 rm -rf scannet.tar
 
 # Replica
+exit
 wget https://s3.eu-central-1.amazonaws.com/avg-projects/monosdf/data/Replica.tar
 tar -xf Replica.tar
 rm -rf Replica.tar
