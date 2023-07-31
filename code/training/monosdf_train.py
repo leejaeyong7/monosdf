@@ -62,7 +62,9 @@ class MonoSDFTrainRunner():
             utils.mkdir_ifnotexists(os.path.join(self.expdir, self.timestamp))
 
             self.plots_dir = os.path.join(self.expdir, self.timestamp, 'plots')
+            self.surface_dir = os.path.join(self.expdir, self.timestamp, 'surfaces')
             utils.mkdir_ifnotexists(self.plots_dir)
+            utils.mkdir_ifnotexists(self.surface_dir)
 
             # create checkpoints dirs
             self.checkpoints_path = os.path.join(self.expdir, self.timestamp, 'checkpoints')
@@ -207,6 +209,109 @@ class MonoSDFTrainRunner():
         torch.save(
             {"epoch": epoch, "scheduler_state_dict": self.scheduler.state_dict()},
             os.path.join(self.checkpoints_path, self.scheduler_params_subdir, "latest.pth"))
+    def plot_model(self):
+        return
+
+    def validate(self, epoch):
+        self.model.eval()
+
+        self.train_dataset.change_sampling_idx(-1)
+        
+        #for data_index, (indices, model_input, ground_truth) in enumerate(self.train_dataloader):
+
+        indices, model_input, ground_truth = next(iter(self.plot_dataloader))
+        model_input["intrinsics"] = model_input["intrinsics"].cuda()
+        model_input["uv"] = model_input["uv"].cuda()
+        model_input['pose'] = model_input['pose'].cuda()
+        
+        split = utils.split_input(model_input, self.total_pixels, n_pixels=self.split_n_pixels)
+        res = []
+        for s in tqdm(split):
+            out = self.model(s, indices)
+            d = {'rgb_values': out['rgb_values'].detach(),
+                    'normal_map': out['normal_map'].detach(),
+                    'depth_values': out['depth_values'].detach()}
+            if 'rgb_un_values' in out:
+                d['rgb_un_values'] = out['rgb_un_values'].detach()
+            res.append(d)
+
+        batch_size = ground_truth['rgb'].shape[0]
+        model_outputs = utils.merge_output(res, self.total_pixels, batch_size)
+        plot_data = self.get_plot_data(model_input, model_outputs, model_input['pose'], ground_truth['rgb'], ground_truth['normal'], ground_truth['depth'])
+
+        plt.plot(self.model.implicit_network,
+                indices,
+                plot_data,
+                self.plots_dir,
+                epoch,
+                self.img_res,
+                **self.plot_conf
+                )
+
+        return
+
+    def train_epoch(self, epoch):
+        self.model.train()
+        self.train_dataset.change_sampling_idx(self.num_pixels)
+
+        for data_index, (indices, model_input, ground_truth) in enumerate(self.train_dataloader):
+            model_input["intrinsics"] = model_input["intrinsics"].cuda()
+            model_input["uv"] = model_input["uv"].cuda()
+            model_input['pose'] = model_input['pose'].cuda()
+            
+            self.optimizer.zero_grad()
+            
+            model_outputs = self.model(model_input, indices)
+            
+            loss_output = self.loss(model_outputs, ground_truth)
+            loss = loss_output['loss']
+            loss.backward()
+            self.optimizer.step()
+            
+            psnr = rend_util.get_psnr(model_outputs['rgb_values'],
+                                        ground_truth['rgb'].cuda().reshape(-1,3))
+            
+            self.iter_step += 1                
+
+            if self.iter_step % 5000 == 0:
+                plt.get_surface_sliding(path=self.surface_dir,
+                                        epoch=self.iter_step,
+                                        sdf=lambda x: self.model.implicit_network(x)[:, 0],
+                                        resolution=self.plot_conf.get('resolution', 512),
+                                        grid_boundary=self.plot_conf.get('grid_boundary', [-1.1, 1.1]),
+                                        level=0
+                                        )
+            
+            if self.iter_step % 100 == 0:
+                print(
+                    '{0}_{1} [{2}] ({3}/{4}): loss = {5}, rgb_loss = {6}, eikonal_loss = {7}, psnr = {8}, bete={9}, alpha={10}'
+                        .format(self.expname, self.timestamp, epoch, data_index, self.n_batches, loss.item(),
+                                loss_output['rgb_loss'].item(),
+                                loss_output['eikonal_loss'].item(),
+                                psnr.item(),
+                                self.model.density.get_beta().item(),
+                                1. / self.model.density.get_beta().item()), flush=True)
+                
+            if self.log_to_tb:
+                self.writer.add_scalar('Loss/loss', loss.item(), self.iter_step)
+                self.writer.add_scalar('Loss/color_loss', loss_output['rgb_loss'].item(), self.iter_step)
+                self.writer.add_scalar('Loss/eikonal_loss', loss_output['eikonal_loss'].item(), self.iter_step)
+                self.writer.add_scalar('Loss/smooth_loss', loss_output['smooth_loss'].item(), self.iter_step)
+                self.writer.add_scalar('Loss/depth_loss', loss_output['depth_loss'].item(), self.iter_step)
+                self.writer.add_scalar('Loss/normal_l1_loss', loss_output['normal_l1'].item(), self.iter_step)
+                self.writer.add_scalar('Loss/normal_cos_loss', loss_output['normal_cos'].item(), self.iter_step)
+                
+                self.writer.add_scalar('Statistics/beta', self.model.density.get_beta().item(), self.iter_step)
+                self.writer.add_scalar('Statistics/alpha', 1. / self.model.density.get_beta().item(), self.iter_step)
+                self.writer.add_scalar('Statistics/psnr', psnr.item(), self.iter_step)
+                
+                if self.Grid_MLP or self.QFF_MLP:
+                    self.writer.add_scalar('Statistics/lr0', self.optimizer.param_groups[0]['lr'], self.iter_step)
+                    self.writer.add_scalar('Statistics/lr1', self.optimizer.param_groups[1]['lr'], self.iter_step)
+                    self.writer.add_scalar('Statistics/lr2', self.optimizer.param_groups[2]['lr'], self.iter_step)
+            
+            self.train_dataset.change_sampling_idx(self.num_pixels)
+            self.scheduler.step()
 
     def run(self):
         print("training...")
@@ -220,93 +325,9 @@ class MonoSDFTrainRunner():
                 self.save_checkpoints(epoch)
 
             if self.GPU_INDEX == 0 and self.do_vis and epoch % self.plot_freq == 0:
-                self.model.eval()
+                self.validate(epoch)
 
-                self.train_dataset.change_sampling_idx(-1)
-                
-                #for data_index, (indices, model_input, ground_truth) in enumerate(self.train_dataloader):
-
-                indices, model_input, ground_truth = next(iter(self.plot_dataloader))
-                model_input["intrinsics"] = model_input["intrinsics"].cuda()
-                model_input["uv"] = model_input["uv"].cuda()
-                model_input['pose'] = model_input['pose'].cuda()
-                
-                split = utils.split_input(model_input, self.total_pixels, n_pixels=self.split_n_pixels)
-                res = []
-                for s in tqdm(split):
-                    out = self.model(s, indices)
-                    d = {'rgb_values': out['rgb_values'].detach(),
-                         'normal_map': out['normal_map'].detach(),
-                         'depth_values': out['depth_values'].detach()}
-                    if 'rgb_un_values' in out:
-                        d['rgb_un_values'] = out['rgb_un_values'].detach()
-                    res.append(d)
-
-                batch_size = ground_truth['rgb'].shape[0]
-                model_outputs = utils.merge_output(res, self.total_pixels, batch_size)
-                plot_data = self.get_plot_data(model_input, model_outputs, model_input['pose'], ground_truth['rgb'], ground_truth['normal'], ground_truth['depth'])
-
-                plt.plot(self.model.implicit_network,
-                        indices,
-                        plot_data,
-                        self.plots_dir,
-                        epoch,
-                        self.img_res,
-                        **self.plot_conf
-                        )
-
-                self.model.train()
-            self.train_dataset.change_sampling_idx(self.num_pixels)
-
-            for data_index, (indices, model_input, ground_truth) in enumerate(self.train_dataloader):
-                model_input["intrinsics"] = model_input["intrinsics"].cuda()
-                model_input["uv"] = model_input["uv"].cuda()
-                model_input['pose'] = model_input['pose'].cuda()
-                
-                self.optimizer.zero_grad()
-                
-                model_outputs = self.model(model_input, indices)
-                
-                loss_output = self.loss(model_outputs, ground_truth)
-                loss = loss_output['loss']
-                loss.backward()
-                self.optimizer.step()
-                
-                psnr = rend_util.get_psnr(model_outputs['rgb_values'],
-                                          ground_truth['rgb'].cuda().reshape(-1,3))
-                
-                self.iter_step += 1                
-                
-                if self.iter_step % 100 == 0:
-                    print(
-                        '{0}_{1} [{2}] ({3}/{4}): loss = {5}, rgb_loss = {6}, eikonal_loss = {7}, psnr = {8}, bete={9}, alpha={10}'
-                            .format(self.expname, self.timestamp, epoch, data_index, self.n_batches, loss.item(),
-                                    loss_output['rgb_loss'].item(),
-                                    loss_output['eikonal_loss'].item(),
-                                    psnr.item(),
-                                    self.model.density.get_beta().item(),
-                                    1. / self.model.density.get_beta().item()), flush=True)
-                    
-                if self.log_to_tb:
-                    self.writer.add_scalar('Loss/loss', loss.item(), self.iter_step)
-                    self.writer.add_scalar('Loss/color_loss', loss_output['rgb_loss'].item(), self.iter_step)
-                    self.writer.add_scalar('Loss/eikonal_loss', loss_output['eikonal_loss'].item(), self.iter_step)
-                    self.writer.add_scalar('Loss/smooth_loss', loss_output['smooth_loss'].item(), self.iter_step)
-                    self.writer.add_scalar('Loss/depth_loss', loss_output['depth_loss'].item(), self.iter_step)
-                    self.writer.add_scalar('Loss/normal_l1_loss', loss_output['normal_l1'].item(), self.iter_step)
-                    self.writer.add_scalar('Loss/normal_cos_loss', loss_output['normal_cos'].item(), self.iter_step)
-                    
-                    self.writer.add_scalar('Statistics/beta', self.model.density.get_beta().item(), self.iter_step)
-                    self.writer.add_scalar('Statistics/alpha', 1. / self.model.density.get_beta().item(), self.iter_step)
-                    self.writer.add_scalar('Statistics/psnr', psnr.item(), self.iter_step)
-                    
-                    if self.Grid_MLP or self.QFF_MLP:
-                        self.writer.add_scalar('Statistics/lr0', self.optimizer.param_groups[0]['lr'], self.iter_step)
-                        self.writer.add_scalar('Statistics/lr1', self.optimizer.param_groups[1]['lr'], self.iter_step)
-                        self.writer.add_scalar('Statistics/lr2', self.optimizer.param_groups[2]['lr'], self.iter_step)
-                
-                self.train_dataset.change_sampling_idx(self.num_pixels)
-                self.scheduler.step()
+            self.train_epoch(epoch)
 
         if self.GPU_INDEX == 0:
             self.save_checkpoints(epoch)

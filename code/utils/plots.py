@@ -40,7 +40,6 @@ def plot(implicit_network, indices, plot_data, path, epoch, img_res, plot_nimgs,
                                          grid_boundary=grid_boundary,
                                          level=level
                                          )
-
 avg_pool_3d = torch.nn.AvgPool3d(2, stride=2)
 upsample = torch.nn.Upsample(scale_factor=2, mode='nearest')
 
