@@ -139,7 +139,7 @@ data/Replica
 data/tnt_advanced
 data/
 
-code/tmp_build
+code/tmp_build*
 
 code/.idea/
 .DS_Store

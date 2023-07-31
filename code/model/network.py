@@ -316,6 +316,9 @@ class ImplicitNetworkGrid(nn.Module):
             print(p.shape)
         return self.encoding.parameters()
 
+
+import tinycudann as tcnn
+from freqhash import FreqHash, FreqVMEncoder
 class ImplicitNetworkQFF(nn.Module):
     def __init__(
             self,
@@ -336,6 +339,7 @@ class ImplicitNetworkQFF(nn.Module):
             n_frequencies= 8,
             log2_min_freq= 1,
             log2_max_freq= 6,
+            qff_type=3,
             divide_factor = 1.5 # used to normalize the points range for multi-res grid
     ):
         super().__init__()
@@ -345,40 +349,71 @@ class ImplicitNetworkQFF(nn.Module):
         dims = [d_in] + dims + [d_out + feature_vector_size]
         self.embed_fn = None
         self.divide_factor = divide_factor
-        self.grid_feature_dim = n_frequencies * n_features * 2
+        self.qff_type = qff_type
+        if qff_type == 1:
+            self.grid_feature_dim = 6 * multires * n_features + d_in
+        elif qff_type == 2:
+            self.grid_feature_dim = 6 * multires * n_features + d_in
+        elif qff_type == 3:
+            self.grid_feature_dim = n_frequencies * n_features * 2
+        else:
+            raise NotImplementedError('QFF type must be 1, 2 or 3')
         dims[0] += self.grid_feature_dim
         
-        print(f"using QFF encoder with {n_frequencies} levels, each level with feature dim {n_features}")
-        print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with Volume resolution of {n_quants}")
+        print(f"using QFF {qff_type} encoder with {n_frequencies} levels, each level with feature dim {n_features}")
+        if qff_type == 1:
+            print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with Volume resolution of {n_quants}")
+            self.encoding = FreqHash(n_quants, multires, n_features, 0.001)
+            self.embed_fn = None
+        elif qff_type == 2:
+            print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with resolution of {n_quants}")
+            self.encoding = FreqVMEncoder(n_quants, multires, n_features, 0.001)
+            self.embed_fn = None
+        elif qff_type == 3:
+            print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with Volume resolution of {n_quants}")
         
-        # can also use tcnn for multi-res grid as it now supports eikonal loss
-        import tinycudann as tcnn
-        self.encoding = tcnn.Encoding(3, {
-            "otype": "QFF",
-            "n_quants": n_quants,
-            "n_features": n_features,
-            "n_frequencies": n_frequencies,
-            "log2_min_freq": log2_min_freq,
-            "log2_max_freq": log2_max_freq
-        })
+            # can also use tcnn for multi-res grid as it now supports eikonal loss
+            self.encoding = tcnn.Encoding(3, {
+                "otype": "QFF",
+                "n_quants": n_quants,
+                "n_features": n_features,
+                "n_frequencies": n_frequencies,
+                "log2_min_freq": log2_min_freq,
+                "log2_max_freq": log2_max_freq
+            })
         
-        if multires > 0:
-            embed_fn, input_ch = get_embedder(multires, input_dims=d_in)
-            self.embed_fn = embed_fn
-            dims[0] += input_ch - 3
+            if multires > 0:
+                embed_fn, input_ch = get_embedder(multires, input_dims=d_in)
+                self.embed_fn = embed_fn
+                dims[0] += input_ch - 3
+
         print("network architecture")
         print(dims)
         
         self.num_layers = len(dims)
         self.skip_in = skip_in
+        if qff_type != 3:
+            for l in range(0, self.num_layers - 1):
+                if l in self.skip_in:
+                    dims[l] -= multires * 6
+
 
         for l in range(0, self.num_layers - 1):
-            if l + 1 in self.skip_in:
-                out_dim = dims[l + 1] - dims[0]
+            if qff_type != 3:
+                if l in self.skip_in:
+                    in_dim = dims[l] + dims[0]
+                    out_dim = dims[l + 1]
+                else:
+                    in_dim = dims[l]
+                    out_dim = dims[l + 1]
+                lin = nn.Linear(in_dim, out_dim)
             else:
-                out_dim = dims[l + 1]
+                if l + 1 in self.skip_in:
+                    out_dim = dims[l + 1] - dims[0]
+                else:
+                    out_dim = dims[l + 1]
 
-            lin = nn.Linear(dims[l], out_dim)
+                lin = nn.Linear(dims[l], out_dim)
 
             if geometric_init:
                 if l == self.num_layers - 2:
@@ -411,7 +446,10 @@ class ImplicitNetworkQFF(nn.Module):
 
     def forward(self, input):
         # normalize point range as encoding assume points are in [-1, 1]
-        feature = self.encoding((input / self.divide_factor) * 0.5 + 0.5)
+        if self.qff_type == 3:
+            feature = self.encoding((input / self.divide_factor) * 0.5 + 0.5)
+        else:
+            feature = self.encoding(input, self.divide_factor)
                     
         if self.embed_fn is not None:
             embed = self.embed_fn(input)
