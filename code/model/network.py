@@ -351,9 +351,9 @@ class ImplicitNetworkQFF(nn.Module):
         self.divide_factor = divide_factor
         self.qff_type = qff_type
         if qff_type == 1:
-            self.grid_feature_dim = 6 * multires * n_features + d_in
+            self.grid_feature_dim = 6 * multires * n_features
         elif qff_type == 2:
-            self.grid_feature_dim = 6 * multires * n_features + d_in
+            self.grid_feature_dim = 6 * multires * n_features
         elif qff_type == 3:
             self.grid_feature_dim = n_frequencies * n_features * 2
         else:
@@ -362,7 +362,7 @@ class ImplicitNetworkQFF(nn.Module):
         
         print(f"using QFF {qff_type} encoder with {n_frequencies} levels, each level with feature dim {n_features}")
         if qff_type == 1:
-            print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with Volume resolution of {n_quants}")
+            print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with resolution of {n_quants}")
             self.encoding = FreqHash(n_quants, multires, n_features, 0.001)
             self.embed_fn = None
         elif qff_type == 2:

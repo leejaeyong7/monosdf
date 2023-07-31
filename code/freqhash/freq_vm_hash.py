@@ -5,14 +5,13 @@ import math
 from .grid_encoder import grid_sample
 
 class FreqVMEncoder(nn.Module):
-    def __init__(self, log2_res=4, num_freqs=6, num_channels=16, std=0.00001):
+    def __init__(self, res=128, num_freqs=6, num_channels=16, std=0.00001):
         super().__init__()
         min_log2_freq = 0
         max_log2_freq = num_freqs - 1
         freqs = 2.0 ** torch.linspace(min_log2_freq, max_log2_freq, num_freqs)
         self.freqs = nn.Parameter(freqs, False)
 
-        res = 2 ** log2_res
         cv = torch.randn((num_freqs * 2 * 3, num_channels, res, 1)) * std
         cm = torch.randn((num_freqs * 2 * 3, num_channels, res, res)) * std
 

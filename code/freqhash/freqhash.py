@@ -6,13 +6,12 @@ from .grid_encoder import grid_sample
 
 
 class FreqHash(nn.Module):
-    def __init__(self, log2_res=8, num_freqs=6, num_channels=48, std=0.001):
+    def __init__(self, res=128, num_freqs=6, num_channels=48, std=0.001):
         super().__init__()
         min_log2_freq = 0
         max_log2_freq = num_freqs - 1
         freqs = 2.0 ** torch.linspace(min_log2_freq, max_log2_freq, num_freqs)
         self.freqs = nn.Parameter(freqs, False)
-        res = 2 ** log2_res
         f = torch.randn((num_freqs * 2 * 3, num_channels, res, 1)) * std
         self.cv = nn.Parameter(f, True)
         self.num_freqs = num_freqs
