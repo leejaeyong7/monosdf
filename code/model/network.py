@@ -359,24 +359,24 @@ class ImplicitNetworkQFF(nn.Module):
             raise NotImplementedError('QFF type must be 1, 2 or 3')
         dims[0] += self.grid_feature_dim
         
-        if multires > 0:
-            embed_fn, input_ch = get_embedder(multires, input_dims=d_in)
-            self.embed_fn = embed_fn
-            dims[0] += input_ch - 3
         
         if qff_type == 1:
             print(f"using QFF {qff_type} encoder with {multires} levels, each level with feature dim {n_features}")
             print(f"resolution:{2 ** 0} -> {2 ** multires} with resolution of {n_quants}")
             self.encoding = FreqHash(n_quants, multires, n_features, 0.001)
-            skip_dim = input_ch
+            skip_dim = 6 * multires * n_features
         elif qff_type == 2:
             print(f"using QFF {qff_type} encoder with {multires} levels, each level with feature dim {n_features}")
             print(f"resolution:{2 ** 0} -> {2 ** multires} with resolution of {n_quants}")
             self.encoding = FreqVMEncoder(n_quants, multires, n_features, 0.001)
-            skip_dim = input_ch
+            skip_dim = 6 * multires * n_features
         elif qff_type == 3:
             print(f"using QFF {qff_type} encoder with {n_frequencies} levels, each level with feature dim {n_features}")
             print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with Volume resolution of {n_quants}")
+            if multires > 0:
+                embed_fn, input_ch = get_embedder(multires, input_dims=d_in)
+                self.embed_fn = embed_fn
+                dims[0] += input_ch - 3
         
             # can also use tcnn for multi-res grid as it now supports eikonal loss
             self.encoding = tcnn.Encoding(3, {
@@ -397,17 +397,8 @@ class ImplicitNetworkQFF(nn.Module):
 
 
         for l in range(0, self.num_layers - 1):
-            # if qff_type != 3:
-            #     if l in self.skip_in:
-            #         in_dim = dims[l] + dims[0]
-            #         out_dim = dims[l + 1]
-            #     else:
-            #         in_dim = dims[l]
-            #         out_dim = dims[l + 1]
-            #     lin = nn.Linear(in_dim, out_dim)
-            # else:
             if l + 1 in self.skip_in:
-                out_dim = dims[l + 1] - skip_dim
+                out_dim = dims[l + 1] - dims[0]
             else:
                 out_dim = dims[l + 1]
 
@@ -429,7 +420,7 @@ class ImplicitNetworkQFF(nn.Module):
                 elif multires > 0 and l in self.skip_in:
                     torch.nn.init.constant_(lin.bias, 0.0)
                     torch.nn.init.normal_(lin.weight, 0.0, np.sqrt(2) / np.sqrt(out_dim))
-                    torch.nn.init.constant_(lin.weight[:, -(skip_dim - 3):], 0.0)
+                    torch.nn.init.constant_(lin.weight[:, -(dims[0] - 3):], 0.0)
                 else:
                     torch.nn.init.constant_(lin.bias, 0.0)
                     torch.nn.init.normal_(lin.weight, 0.0, np.sqrt(2) / np.sqrt(out_dim))
@@ -453,7 +444,6 @@ class ImplicitNetworkQFF(nn.Module):
             embed = self.embed_fn(input)
             input = torch.cat((embed, feature), dim=-1)
         else:
-            embed = input
             input = torch.cat((input, feature), dim=-1)
 
         x = input
@@ -462,7 +452,7 @@ class ImplicitNetworkQFF(nn.Module):
             lin = getattr(self, "lin" + str(l))
 
             if l in self.skip_in:
-                x = torch.cat([x, embed], 1) / np.sqrt(2)
+                x = torch.cat([x, input], 1) / np.sqrt(2)
 
             x = lin(x)
 
