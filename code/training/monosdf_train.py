@@ -273,7 +273,8 @@ class MonoSDFTrainRunner():
             
             self.iter_step += 1                
 
-            if self.iter_step % 5000 == 0:
+            if (self.iter_step % 5000 == 0):
+                print('Plotting', self.iter_step)
                 plt.get_surface_sliding(path=self.surface_dir,
                                         epoch=self.iter_step,
                                         sdf=lambda x: self.model.implicit_network(x)[:, 0],
