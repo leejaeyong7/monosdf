@@ -5,13 +5,24 @@ EXP_DIR="${MOUNT_DIR}/monosdf-qff-results"
 run_name=""
 scene=$1
 qff_type=$2
+dtu=$3
 if [[ $2 = "0" ]]; then
-  run_name="scannet_mlp"
-  conf=scannet_mlp.conf
+  model="mlp"
 else
-  run_name="scannet_qff_${qff_type}"
-  conf=scannet_qff_${qff_type}.conf
+  model="qff_${qff_type}"
 fi
+
+if [[ $3 = "--dtu" ]]; then
+  dataset="dtu"
+  suffix="_3views"
+else
+  dataset="scannet"
+  suffix=""
+fi
+conf=${dataset}_${model}${suffix}.conf
+run_name=${dataset}_${model}${suffix}
+echo $run_name
+
 
 cd code
 python training/exp_runner.py --conf confs/${conf} --scan_id $scene --data_folder=${DATA_DIR} --exps_folder=${EXP_DIR} --timestamp=server
@@ -21,7 +32,7 @@ cd ${EXP_DIR}
 zip -r "${run_name}_${scene}.zip" "${run_name}_${scene}/server/surfaces"
 
 
-result_dirname="monosdf-qff-timing"
+result_dirname="monosdf-qff-rerun"
 ssh jyl "mkdir -p /mnt/data1/cluster_results/${result_dirname}/${run_name}"
 ssh jyl "mkdir -p /mnt/data1/monosdf_outputs/${result_dirname}/${run_name}/${scene}"
 scp "${run_name}_${scene}.zip" jyl:/mnt/data1/cluster_results/${result_dirname}/${run_name}/

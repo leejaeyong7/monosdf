@@ -317,7 +317,6 @@ class ImplicitNetworkGrid(nn.Module):
         return self.encoding.parameters()
 
 
-import tinycudann as tcnn
 from freqhash import FreqHash, FreqVMEncoder
 class ImplicitNetworkQFF(nn.Module):
     def __init__(
@@ -364,12 +363,10 @@ class ImplicitNetworkQFF(nn.Module):
             print(f"using QFF {qff_type} encoder with {multires} levels, each level with feature dim {n_features}")
             print(f"resolution:{2 ** 0} -> {2 ** multires} with resolution of {n_quants}")
             self.encoding = FreqHash(n_quants, multires, n_features, 0.001)
-            skip_dim = 6 * multires * n_features
         elif qff_type == 2:
             print(f"using QFF {qff_type} encoder with {multires} levels, each level with feature dim {n_features}")
             print(f"resolution:{2 ** 0} -> {2 ** multires} with resolution of {n_quants}")
             self.encoding = FreqVMEncoder(n_quants, multires, n_features, 0.001)
-            skip_dim = 6 * multires * n_features
         elif qff_type == 3:
             print(f"using QFF {qff_type} encoder with {n_frequencies} levels, each level with feature dim {n_features}")
             print(f"resolution:{2 ** log2_min_freq} -> {2 ** log2_max_freq} with Volume resolution of {n_quants}")
@@ -379,6 +376,7 @@ class ImplicitNetworkQFF(nn.Module):
                 dims[0] += input_ch - 3
         
             # can also use tcnn for multi-res grid as it now supports eikonal loss
+            import tinycudann as tcnn
             self.encoding = tcnn.Encoding(3, {
                 "otype": "QFF",
                 "n_quants": n_quants,
@@ -387,7 +385,6 @@ class ImplicitNetworkQFF(nn.Module):
                 "log2_min_freq": log2_min_freq,
                 "log2_max_freq": log2_max_freq
             })
-            skip_dim = dims[0]
 
         print("network architecture")
         print(dims)
