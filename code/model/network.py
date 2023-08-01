@@ -337,8 +337,8 @@ class ImplicitNetworkQFF(nn.Module):
             n_quants= 80,
             n_features= 2,
             n_frequencies= 8,
-            log2_min_freq= 1,
-            log2_max_freq= 6,
+            log2_min_freq= 0,
+            log2_max_freq= 5,
             qff_type=3,
             divide_factor = 1.5 # used to normalize the points range for multi-res grid
     ):
