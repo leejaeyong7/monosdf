@@ -183,6 +183,7 @@ class MonoSDFTrainRunner():
         self.img_res = self.train_dataset.img_res
         self.n_batches = len(self.train_dataloader)
         self.plot_freq = self.conf.get_int('train.plot_freq')
+        self.plot_iter_freq = self.conf.get_int('train.plot_iter_freq', default=200000)
         self.checkpoint_freq = self.conf.get_int('train.checkpoint_freq', default=100)
         self.split_n_pixels = self.conf.get_int('train.split_n_pixels', default=10000)
         self.plot_conf = self.conf.get_config('plot')
@@ -273,7 +274,7 @@ class MonoSDFTrainRunner():
             
             self.iter_step += 1                
 
-            if (self.iter_step % 5000 == 0):
+            if (self.iter_step % self.plot_iter_freq == 0):
                 print('Plotting', self.iter_step)
                 plt.get_surface_sliding(path=self.surface_dir,
                                         epoch=self.iter_step,
