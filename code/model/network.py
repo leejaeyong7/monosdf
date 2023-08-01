@@ -349,10 +349,9 @@ class ImplicitNetworkQFF(nn.Module):
         dims = [d_in] + dims + [d_out + feature_vector_size]
         self.embed_fn = None
         self.divide_factor = divide_factor
+
         self.qff_type = qff_type
-        if qff_type == 1:
-            self.grid_feature_dim = 6 * multires * n_features
-        elif qff_type == 2:
+        if qff_type != 3:
             self.grid_feature_dim = 6 * multires * n_features
         elif qff_type == 3:
             self.grid_feature_dim = n_frequencies * n_features * 2
