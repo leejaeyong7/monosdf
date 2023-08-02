@@ -75,39 +75,42 @@ def get_surface_sliding(path, epoch, sdf, resolution=100, grid_boundary=[-2.0, 2
 
                 xx, yy, zz = np.meshgrid(x, y, z, indexing='ij')
                 points = torch.tensor(np.vstack([xx.ravel(), yy.ravel(), zz.ravel()]).T, dtype=torch.float).cuda()
+                print(points.shape)
                 
                 def evaluate(points):
                     z = []
-                    for _, pnts in enumerate(torch.split(points, 10000, dim=0)):
+                    for _, pnts in enumerate(torch.split(points, 1000, dim=0)):
                         z.append(sdf(pnts))
                     z = torch.cat(z, axis=0)
                     return z
+                
             
                 # construct point pyramids
                 points = points.reshape(cropN, cropN, cropN, 3).permute(3, 0, 1, 2)
-                points_pyramid = [points]
+                points_pyramid = [points.reshape(3, -1).permute(1, 0)]
+                # points_pyramid = [points]
+                point_shapes = [cropN]
                 for _ in range(3):            
                     points = avg_pool_3d(points[None])[0]
-                    points_pyramid.append(points)
+                    point_shapes.append(points.shape[-1])
+                    points_pyramid.append(points.reshape(3, -1).permute(1, 0))
                 points_pyramid = points_pyramid[::-1]
+                point_shapes = point_shapes[::-1]
                 
                 # evalute pyramid with mask
                 mask = None
                 threshold = 2 * (x_max - x_min)/cropN * 8
                 for pid, pts in enumerate(points_pyramid):
-                    coarse_N = pts.shape[-1]
-                    pts = pts.reshape(3, -1).permute(1, 0).contiguous()
+                    coarse_N = point_shapes[pid]
+                    # pts = pts.reshape(3, -1).permute(1, 0).contiguous()
                     
                     if mask is None:    
                         pts_sdf = evaluate(pts)
                     else:                    
                         mask = mask.reshape(-1)
-                        pts_to_eval = pts[mask]
-                        #import pdb; pdb.set_trace()
-                        if pts_to_eval.shape[0] > 0:
-                            pts_sdf_eval = evaluate(pts_to_eval.contiguous())
-                            pts_sdf[mask] = pts_sdf_eval
-                        print("ratio", pts_to_eval.shape[0] / pts.shape[0])
+                        if mask.sum() > 0:
+                            pts_sdf[mask] = evaluate(pts[mask])
+                        print("ratio", mask.sum() / pts.shape[0])
 
                     if pid < 3:
                         # update mask

@@ -146,6 +146,7 @@ class SceneDatasetDN(torch.utils.data.Dataset):
         self.num_views = num_views
         assert num_views in [-1, 3, 6, 9]
         
+        print(self.instance_dir)
         assert os.path.exists(self.instance_dir), "Data directory is empty"
 
         self.sampling_idx = None

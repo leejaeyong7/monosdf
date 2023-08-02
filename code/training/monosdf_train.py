@@ -214,6 +214,7 @@ class MonoSDFTrainRunner():
         return
 
     def validate(self, epoch):
+        torch.cuda.empty_cache()
         self.model.eval()
 
         self.train_dataset.change_sampling_idx(-1)
@@ -240,14 +241,17 @@ class MonoSDFTrainRunner():
         model_outputs = utils.merge_output(res, self.total_pixels, batch_size)
         plot_data = self.get_plot_data(model_input, model_outputs, model_input['pose'], ground_truth['rgb'], ground_truth['normal'], ground_truth['depth'])
 
-        plt.plot(self.model.implicit_network,
-                indices,
-                plot_data,
-                self.plots_dir,
-                epoch,
-                self.img_res,
-                **self.plot_conf
-                )
+        # torch.cuda.empty_cache()
+        self.plot_data(epoch)
+
+    def plot_data(self, epoch):
+        plt.get_surface_sliding(path=self.surface_dir,
+                                epoch=epoch,
+                                sdf=lambda x: self.model.implicit_network(x)[:, 0],
+                                resolution=self.plot_conf.get('resolution', 512),
+                                grid_boundary=self.plot_conf.get('grid_boundary', [-1.1, 1.1]),
+                                level=0
+                                )
 
         return
 
@@ -272,9 +276,8 @@ class MonoSDFTrainRunner():
             psnr = rend_util.get_psnr(model_outputs['rgb_values'],
                                         ground_truth['rgb'].cuda().reshape(-1,3))
             
-            self.iter_step += 1                
-
-            if (self.iter_step % self.plot_iter_freq == 0):
+            # self.iter_step += 1                
+            if ((self.iter_step % self.plot_iter_freq) == 0):
                 print('Plotting', self.iter_step)
                 plt.get_surface_sliding(path=self.surface_dir,
                                         epoch=self.iter_step,
@@ -283,6 +286,8 @@ class MonoSDFTrainRunner():
                                         grid_boundary=self.plot_conf.get('grid_boundary', [-1.1, 1.1]),
                                         level=0
                                         )
+            self.iter_step += 1                
+
             
             if self.iter_step % 100 == 0:
                 print(
@@ -326,8 +331,9 @@ class MonoSDFTrainRunner():
             if self.GPU_INDEX == 0 and epoch % self.checkpoint_freq == 0:
                 self.save_checkpoints(epoch)
 
-            if self.GPU_INDEX == 0 and self.do_vis and epoch % self.plot_freq == 0:
+            if self.GPU_INDEX == 0 and self.do_vis and (epoch % self.plot_freq == 0) and (epoch != 0):
                 self.validate(epoch)
+            
 
             self.train_epoch(epoch)
 

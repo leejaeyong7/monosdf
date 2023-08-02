@@ -137,7 +137,6 @@ class ImplicitNetwork(nn.Module):
         return sdf
 
 
-from hashencoder.hashgrid import _hash_encode, HashEncoder
 class ImplicitNetworkGrid(nn.Module):
     def __init__(
             self,
@@ -172,6 +171,7 @@ class ImplicitNetworkGrid(nn.Module):
         self.use_grid_feature = use_grid_feature
         dims[0] += self.grid_feature_dim
         
+        from hashencoder.hashgrid import _hash_encode, HashEncoder
         print(f"using hash encoder with {num_levels} levels, each level with feature dim {level_dim}")
         print(f"resolution:{base_size} -> {end_size} with hash map size {logmap}")
         self.encoding = HashEncoder(input_dim=3, num_levels=num_levels, level_dim=level_dim, 

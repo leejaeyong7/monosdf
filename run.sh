@@ -8,6 +8,8 @@ qff_type=$2
 dtu=$3
 if [[ $2 = "0" ]]; then
   model="mlp"
+elif [[ $2 = "4" ]]; then
+  model="grids"
 else
   model="qff_${qff_type}"
 fi
@@ -36,5 +38,6 @@ result_dirname="monosdf-qff-rerun"
 ssh jyl "mkdir -p /mnt/data1/cluster_results/${result_dirname}/${run_name}"
 ssh jyl "mkdir -p /mnt/data1/monosdf_outputs/${result_dirname}/${run_name}/${scene}"
 scp "${run_name}_${scene}.zip" jyl:/mnt/data1/cluster_results/${result_dirname}/${run_name}/
-ssh jyl "cd /mnt/data1/cluster_results/${result_dirname}/${run_name}/ && unzip "{run_name}_${scene}.zip" -d /mnt/data1/monosdf_outputs/${result_dirname}/${run_name}/${scene}"
+# ssh jyl "cd /mnt/data1/cluster_results/${result_dirname}/${run_name}/ && unzip "{run_name}_${scene}.zip" -d /mnt/data1/monosdf_outputs/${result_dirname}/${run_name}/${scene}"
+ssh jyl "cd /mnt/data1/cluster_results/${result_dirname}/${run_name}/ && unzip "{run_name}_${scene}.zip" -d /mnt/data1/monoqff/outputs/${run_name}_${scene}"
 
